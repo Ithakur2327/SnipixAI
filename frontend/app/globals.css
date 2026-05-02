@@ -1,0 +1,84 @@
+@import url('https://fonts.googleapis.com/css2?family=Raleway:wght@400;500;600;700;800;900&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --orange: #E8590A;
+  --orange-pale: #FFF3E0;
+  --gray-bg: #EDEDED;
+  --gray-dark: #1A1A1A;
+  --gray-mid: #888888;
+  --gray-border: #D8D8D8;
+  --font-inter: 'Inter', 'Segoe UI', sans-serif;
+  --font-bebas: 'Segoe UI', sans-serif;
+  --font-raleway: 'Raleway', sans-serif;
+  --font-space: 'Segoe UI', sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: 'Inter', 'Segoe UI', sans-serif;
+  
+  /* ✅ FIX: make base transparent */
+  background-color: transparent;
+
+  color: #1A1A1A;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ✅ add wrapper instead of body bg */
+.main-bg {
+  background-color: #EDEDED;
+  min-height: 100vh;
+}
+
+.btn-primary {
+  background: #E8590A;
+  color: white;
+  border: none;
+  padding: 12px 28px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-block;
+  text-decoration: none;
+  transition: background 0.2s;
+}
+.btn-primary:hover { background: #FF6B1A; }
+
+.btn-ghost {
+  background: #D0CFCF;
+  color: #1A1A1A;
+  border: none;
+  padding: 12px 28px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-block;
+  text-decoration: none;
+  transition: background 0.2s;
+}
+.btn-ghost:hover { background: #b8b7b7; }
+
+.display-watermark {
+  font-size: clamp(80px, 15vw, 160px);
+  font-weight: 900;
+  color: rgba(255, 255, 255, 0.4);
+  letter-spacing: -4px;
+  line-height: 1;
+  pointer-events: none;
+  user-select: none;
+}
