@@ -9,8 +9,8 @@ export default function ChatMessage({ message }: { message: ChatMsg }) {
         <div
           className="px-4 py-3 text-sm leading-relaxed"
           style={{
-            background:   isUser ? "#E8590A" : "#F5F5F5",
-            color:        isUser ? "white"   : "#1A1A1A",
+            background:   isUser ? "#E8590A" : "#1A1A1A",
+            color:        isUser ? "white"   : "#E0E0E0",
             borderRadius: isUser ? "16px 16px 4px 16px" : "16px 16px 16px 4px",
           }}
         >
@@ -23,7 +23,7 @@ export default function ChatMessage({ message }: { message: ChatMsg }) {
               <span
                 key={i}
                 className="text-xs px-2 py-0.5 rounded-md font-mono cursor-pointer"
-                style={{ background: "#E6F1FB", color: "#0C447C" }}
+                style={{ background: "#2A2A35", color: "#A0A0A0", border: "1px solid #404040" }}
                 title={s.chunkText}
               >
                 src · {(s.score * 100).toFixed(0)}%

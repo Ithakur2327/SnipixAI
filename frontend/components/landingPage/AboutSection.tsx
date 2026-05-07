@@ -127,8 +127,8 @@ export default function AboutSection() {
         className="snx-about-section"
         style={{
           padding: "72px 32px",
-          background: "#0E0E14",
-          borderTop: "1px solid rgba(255,255,255,0.04)",
+          background: "#000000",
+          borderTop: "1px solid rgba(255,255,255,0.06)",
           position: "relative",
           overflow: "hidden",
         }}
@@ -262,8 +262,8 @@ export default function AboutSection() {
         id="how-it-works"
         style={{
           padding: "72px 32px 80px",
-          background: "#0E0E14",
-          borderTop: "1px solid rgba(255,255,255,0.04)",
+          background: "#000000",
+          borderTop: "1px solid rgba(255,255,255,0.06)",
           position: "relative",
           overflow: "hidden",
         }}
@@ -323,10 +323,10 @@ export default function AboutSection() {
                 {/* Icon */}
                 <div style={{
                   width: "52px", height: "52px", borderRadius: "14px",
-                  background: "#0E0E14", border: "1px solid rgba(232,89,10,0.28)",
+                  background: "#000000", border: "1px solid rgba(232,89,10,0.28)",
                   display: "flex", alignItems: "center", justifyContent: "center",
                   marginBottom: "22px", position: "relative", zIndex: 1,
-                  boxShadow: "0 0 0 6px #0E0E14",
+                  boxShadow: "0 0 0 6px rgba(0,0,0,0.15)",
                 }}>
                   {s.icon}
                 </div>

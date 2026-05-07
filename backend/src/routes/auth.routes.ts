@@ -5,9 +5,10 @@ import { registerRules, loginRules, validate } from "../middleware/validators";
 
 const router = Router();
 
+// register & login already wrapped in asyncHandler inside controller
 router.post("/register", registerRules, validate, register);
 router.post("/login",    loginRules,    validate, login);
-router.get( "/me",       protect,               getMe);
-router.post("/logout",   protect,               logout);
+router.get( "/me",       protect,       getMe);
+router.post("/logout",   protect,       logout);
 
 export default router;

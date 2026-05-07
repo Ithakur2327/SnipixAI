@@ -139,7 +139,7 @@ export default function DocumentModal({
           width: "100%",
           maxWidth: "1100px",
           height: "90vh",
-          background: "#0F0F14",
+          background: "#000000",
           border: "1px solid rgba(255,255,255,0.08)",
           borderRadius: "20px",
           display: "flex",

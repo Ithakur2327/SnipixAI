@@ -2,371 +2,466 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { MOCK_DOCUMENTS } from "@/lib/mockData";
+import type { Document as DocItem } from "@/types";
 import DocumentCard from "@/components/dashboard/DocumentCard";
 
-const STATS = [
-  {
-    label: "Total Documents",
-    value: "12",
-    icon: (
-      <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-        <path
-          d="M4 2h7l4 4v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z"
-          stroke="#E8590A"
-          strokeWidth="1.4"
-        />
-        <path d="M11 2v4h4" stroke="#E8590A" strokeWidth="1.4" />
-        <path
-          d="M6 9h6M6 12h4"
-          stroke="#E8590A"
-          strokeWidth="1.3"
-          strokeLinecap="round"
-        />
-      </svg>
-    ),
-    change: "+3 this week",
-    color: "#E8590A",
-  },
-  {
-    label: "Summaries Generated",
-    value: "28",
-    icon: (
-      <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-        <circle cx="9" cy="9" r="7" stroke="#A78BFA" strokeWidth="1.4" />
-        <path
-          d="M6 9h6M6 6h6M6 12h4"
-          stroke="#A78BFA"
-          strokeWidth="1.3"
-          strokeLinecap="round"
-        />
-      </svg>
-    ),
-    change: "+8 this week",
-    color: "#A78BFA",
-  },
-];
+const FILTERS = ["All", "PDF", "DOCX", "URL", "PPT"];
 
-export default function DashboardPage() {
-  const [filter, setFilter] = useState("All");
+const docs = MOCK_DOCUMENTS as DocItem[];
+const totalDocs      = docs.length;
+const totalSummaries = docs.reduce((a, d) => a + (d.summaryCount ?? 0), 0);
+
+export default function LibraryPage() {
+  const [filter, setFilter]   = useState("All");
+  const [search, setSearch]   = useState("");
   const router = useRouter();
-  const FILTERS = ["All", "PDF", "DOCX", "URL", "PPT"];
 
-  const filtered =
-    filter === "All"
-      ? MOCK_DOCUMENTS
-      : MOCK_DOCUMENTS.filter(
-          (d) => d.sourceType.toLowerCase() === filter.toLowerCase()
-        );
+  const filtered = docs.filter((d) => {
+    const matchType =
+      filter === "All" || d.sourceType.toLowerCase() === filter.toLowerCase();
+    const matchSearch =
+      search === "" ||
+      d.title.toLowerCase().includes(search.toLowerCase());
+    return matchType && matchSearch;
+  });
 
   return (
-    <div
-      style={{
-        maxWidth: "1200px",
-        margin: "0 auto",
-        padding: "32px 24px",
-      }}
-    >
-      {/* ── Page Header ── */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "flex-start",
-          justifyContent: "space-between",
-          marginBottom: "32px",
-          flexWrap: "wrap",
-          gap: "16px",
-        }}
-      >
-        <div>
-          <h2
-            style={{
-              fontFamily: "var(--font-bebas), sans-serif",
-              fontSize: "clamp(28px, 4vw, 42px)",
-              fontWeight: 400,
-              color: "#FFFFFF",
-              letterSpacing: "1px",
-              marginBottom: "6px",
-            }}
-          >
-            Your Document Library
-          </h2>
-          <p
-            style={{
-              fontSize: "13px",
-              color: "rgba(255,255,255,0.35)",
-              fontFamily: "var(--font-inter), sans-serif",
-            }}
-          >
-            Manage and explore your documents here.
+    <>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@400;600;700&display=swap');
+
+        /* ── stagger animations ── */
+        @keyframes lib-fade-up {
+          from { opacity: 0; transform: translateY(20px); }
+          to   { opacity: 1; transform: translateY(0);    }
+        }
+        .lib-anim { animation: lib-fade-up 0.55s cubic-bezier(0.22,1,0.36,1) both; }
+        .lib-anim-1 { animation-delay: 0.04s; }
+        .lib-anim-2 { animation-delay: 0.12s; }
+        .lib-anim-3 { animation-delay: 0.20s; }
+        .lib-anim-4 { animation-delay: 0.28s; }
+
+        /* ── stat card hover ── */
+        .lib-stat-card {
+          background: rgba(255,255,255,0.03);
+          border: 1px solid rgba(255,255,255,0.07);
+          border-radius: 18px;
+          padding: 24px 26px;
+          transition: border-color 0.2s ease, transform 0.2s ease, background 0.2s ease;
+        }
+        .lib-stat-card:hover {
+          border-color: rgba(255,255,255,0.13);
+          background: rgba(255,255,255,0.05);
+          transform: translateY(-2px);
+        }
+
+        /* ── CTA card ── */
+        .lib-cta-card {
+          background: linear-gradient(140deg, rgba(232,89,10,0.13) 0%, rgba(232,89,10,0.04) 100%);
+          border: 1px solid rgba(232,89,10,0.22);
+          border-radius: 18px;
+          padding: 24px 26px;
+          cursor: pointer;
+          transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+          display: flex;
+          flex-direction: column;
+          justify-content: space-between;
+        }
+        .lib-cta-card:hover {
+          background: linear-gradient(140deg, rgba(232,89,10,0.22) 0%, rgba(232,89,10,0.08) 100%);
+          border-color: rgba(232,89,10,0.45);
+          transform: translateY(-2px);
+          box-shadow: 0 12px 40px rgba(232,89,10,0.14);
+        }
+        .lib-cta-card:active { transform: scale(0.98); }
+
+        /* ── search input ── */
+        .lib-search {
+          background: rgba(255,255,255,0.04);
+          border: 1px solid rgba(255,255,255,0.08);
+          border-radius: 11px;
+          padding: 10px 14px 10px 40px;
+          font-size: 13px;
+          color: rgba(255,255,255,0.8);
+          outline: none;
+          width: 100%;
+          font-family: var(--font-inter), sans-serif;
+          transition: border-color 0.18s ease, background 0.18s ease;
+        }
+        .lib-search::placeholder { color: rgba(255,255,255,0.25); }
+        .lib-search:focus {
+          border-color: rgba(232,89,10,0.45);
+          background: rgba(255,255,255,0.06);
+        }
+
+        /* ── filter chip ── */
+        .lib-chip {
+          padding: 6px 14px;
+          border-radius: 8px;
+          border: none;
+          font-size: 12px;
+          font-weight: 500;
+          cursor: pointer;
+          transition: background 0.15s ease, color 0.15s ease;
+          font-family: var(--font-inter), sans-serif;
+          letter-spacing: 0.2px;
+        }
+        .lib-chip-inactive {
+          background: transparent;
+          color: rgba(255,255,255,0.35);
+        }
+        .lib-chip-inactive:hover {
+          background: rgba(255,255,255,0.06);
+          color: rgba(255,255,255,0.75);
+        }
+        .lib-chip-active {
+          background: rgba(232,89,10,0.88);
+          color: #fff;
+          font-weight: 600;
+        }
+
+        /* ── doc card entrance ── */
+        @keyframes card-pop {
+          from { opacity: 0; transform: scale(0.96) translateY(10px); }
+          to   { opacity: 1; transform: scale(1)    translateY(0); }
+        }
+        .lib-card-grid > * {
+          animation: card-pop 0.4s cubic-bezier(0.22,1,0.36,1) both;
+        }
+        .lib-card-grid > *:nth-child(1) { animation-delay: 0.00s; }
+        .lib-card-grid > *:nth-child(2) { animation-delay: 0.06s; }
+        .lib-card-grid > *:nth-child(3) { animation-delay: 0.12s; }
+        .lib-card-grid > *:nth-child(4) { animation-delay: 0.18s; }
+        .lib-card-grid > *:nth-child(5) { animation-delay: 0.22s; }
+        .lib-card-grid > *:nth-child(6) { animation-delay: 0.26s; }
+      `}</style>
+
+      <div style={{ maxWidth: "1160px", margin: "0 auto", padding: "40px 24px 60px" }}>
+
+        {/* ── PAGE HEADER ── */}
+        <div className="lib-anim lib-anim-1" style={{ marginBottom: "36px" }}>
+          <p style={{
+            fontFamily: "var(--font-inter), sans-serif",
+            fontSize: "11px",
+            fontWeight: 600,
+            letterSpacing: "2px",
+            textTransform: "uppercase",
+            color: "#E8590A",
+            marginBottom: "10px",
+            opacity: 0.85,
+          }}>
+            Your Workspace
+          </p>
+          <h1 style={{
+            fontFamily: "'Josefin Sans', 'Arial Black', sans-serif",
+            fontSize: "clamp(32px, 4.5vw, 52px)",
+            fontWeight: 700,
+            color: "#FFFFFF",
+            letterSpacing: "1.5px",
+            lineHeight: 1.05,
+            textTransform: "uppercase",
+            marginBottom: "10px",
+          }}>
+            Document Library
+          </h1>
+          <p style={{
+            fontFamily: "var(--font-inter), sans-serif",
+            fontSize: "14px",
+            color: "rgba(255,255,255,0.3)",
+            lineHeight: 1.6,
+          }}>
+            All your summaries and documents, organized in one place.
           </p>
         </div>
-      </div>
 
-      {/* ── Stats + New Summary row ── */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr 1.2fr",
-          gap: "16px",
-          marginBottom: "32px",
-        }}
-      >
-        {/* Stat cards */}
-        {STATS.map((s) => (
-          <div
-            key={s.label}
-            style={{
-              background: "rgba(255,255,255,0.03)",
-              border: "1px solid rgba(255,255,255,0.07)",
-              borderRadius: "16px",
-              padding: "20px",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                marginBottom: "14px",
-              }}
-            >
-              <span
-                style={{
-                  fontSize: "11px",
-                  color: "rgba(255,255,255,0.35)",
-                  fontWeight: 500,
-                  fontFamily: "var(--font-inter), sans-serif",
-                }}
-              >
-                {s.label}
-              </span>
-              <div
-                style={{
-                  width: "32px",
-                  height: "32px",
-                  borderRadius: "8px",
-                  background: "rgba(255,255,255,0.05)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                {s.icon}
-              </div>
-            </div>
-            <div
-              style={{
-                fontFamily: "var(--font-bebas), sans-serif",
-                fontSize: "36px",
-                color: "#FFFFFF",
-                letterSpacing: "1px",
-                lineHeight: 1,
-                marginBottom: "6px",
-              }}
-            >
-              {s.value}
-            </div>
-            <div
-              style={{
-                fontSize: "11px",
-                color: "#34D399",
-                fontFamily: "var(--font-inter), sans-serif",
-              }}
-            >
-              ↑ {s.change}
-            </div>
-          </div>
-        ))}
-
-        {/* New Summary CTA card */}
+        {/* ── TOP CARDS ROW ── */}
         <div
-          onClick={() => router.push("/#summarizer")}
+          className="lib-anim lib-anim-2"
           style={{
-            background:
-              "linear-gradient(135deg, rgba(232,89,10,0.15), rgba(232,89,10,0.05))",
-            border: "1px solid rgba(232,89,10,0.25)",
-            borderRadius: "16px",
-            padding: "20px",
-            cursor: "pointer",
-            transition: "all 0.2s",
-            display: "flex",
-            flexDirection: "column",
-            justifyContent: "space-between",
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background =
-              "linear-gradient(135deg, rgba(232,89,10,0.25), rgba(232,89,10,0.1))";
-            e.currentTarget.style.borderColor = "rgba(232,89,10,0.5)";
-            e.currentTarget.style.transform = "translateY(-2px)";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background =
-              "linear-gradient(135deg, rgba(232,89,10,0.15), rgba(232,89,10,0.05))";
-            e.currentTarget.style.borderColor = "rgba(232,89,10,0.25)";
-            e.currentTarget.style.transform = "translateY(0)";
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr 1.25fr",
+            gap: "14px",
+            marginBottom: "32px",
           }}
         >
-          <div
-            style={{
-              width: "40px",
-              height: "40px",
-              borderRadius: "12px",
-              background: "#E8590A",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              marginBottom: "14px",
-              boxShadow: "0 0 20px rgba(232,89,10,0.4)",
-            }}
-          >
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-              <path
-                d="M10 4v12M4 10h12"
-                stroke="white"
-                strokeWidth="2"
-                strokeLinecap="round"
-              />
-            </svg>
-          </div>
-          <div>
-            <p
-              style={{
-                fontFamily: "var(--font-bebas), sans-serif",
-                fontSize: "22px",
-                color: "#FFFFFF",
-                letterSpacing: "0.5px",
-                marginBottom: "4px",
-              }}
-            >
-              New Summary
-            </p>
-            <p
-              style={{
-                fontSize: "12px",
-                color: "rgba(255,255,255,0.4)",
+          {/* Card 1 — Total Docs */}
+          <div className="lib-stat-card">
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
+              <span style={{
                 fontFamily: "var(--font-inter), sans-serif",
-                lineHeight: 1.5,
-              }}
-            >
-              Upload a doc, paste a URL, or drop an image to summarize
-              instantly.
-            </p>
+                fontSize: "11px",
+                fontWeight: 500,
+                letterSpacing: "0.8px",
+                textTransform: "uppercase",
+                color: "rgba(255,255,255,0.3)",
+              }}>
+                Total Docs
+              </span>
+              <div style={{
+                width: "34px", height: "34px", borderRadius: "9px",
+                background: "rgba(232,89,10,0.12)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+              }}>
+                <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
+                  <path d="M5 3h8l4 4v11a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"
+                    stroke="#E8590A" strokeWidth="1.5" strokeLinejoin="round"/>
+                  <path d="M13 3v4h4" stroke="#E8590A" strokeWidth="1.5" strokeLinejoin="round"/>
+                  <path d="M7 10h6M7 13h4" stroke="#E8590A" strokeWidth="1.4" strokeLinecap="round"/>
+                </svg>
+              </div>
+            </div>
+            <div style={{
+              fontFamily: "'Josefin Sans', 'Arial Black', sans-serif",
+              fontSize: "48px",
+              fontWeight: 700,
+              color: "#FFFFFF",
+              lineHeight: 1,
+              letterSpacing: "1px",
+              marginBottom: "8px",
+            }}>
+              {totalDocs}
+            </div>
+            <div style={{
+              fontFamily: "var(--font-inter), sans-serif",
+              fontSize: "11px",
+              color: "#34D399",
+              display: "flex", alignItems: "center", gap: "4px",
+            }}>
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                <path d="M5 8V2M2 5l3-3 3 3" stroke="#34D399" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              +3 this week
+            </div>
           </div>
+
+          {/* Card 2 — Total Summaries */}
+          <div className="lib-stat-card">
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
+              <span style={{
+                fontFamily: "var(--font-inter), sans-serif",
+                fontSize: "11px",
+                fontWeight: 500,
+                letterSpacing: "0.8px",
+                textTransform: "uppercase",
+                color: "rgba(255,255,255,0.3)",
+              }}>
+                Summarized
+              </span>
+              <div style={{
+                width: "34px", height: "34px", borderRadius: "9px",
+                background: "rgba(167,139,250,0.12)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+              }}>
+                <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
+                  <circle cx="10" cy="10" r="8" stroke="#A78BFA" strokeWidth="1.5"/>
+                  <path d="M7 7h6M7 10h6M7 13h4" stroke="#A78BFA" strokeWidth="1.4" strokeLinecap="round"/>
+                </svg>
+              </div>
+            </div>
+            <div style={{
+              fontFamily: "'Josefin Sans', 'Arial Black', sans-serif",
+              fontSize: "48px",
+              fontWeight: 700,
+              color: "#FFFFFF",
+              lineHeight: 1,
+              letterSpacing: "1px",
+              marginBottom: "8px",
+            }}>
+              {totalSummaries}
+            </div>
+            <div style={{
+              fontFamily: "var(--font-inter), sans-serif",
+              fontSize: "11px",
+              color: "#34D399",
+              display: "flex", alignItems: "center", gap: "4px",
+            }}>
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                <path d="M5 8V2M2 5l3-3 3 3" stroke="#34D399" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              +8 this week
+            </div>
+          </div>
+
+          {/* Card 3 — New Summary CTA */}
           <div
-            style={{
-              marginTop: "14px",
-              display: "flex",
-              alignItems: "center",
-              gap: "6px",
-              fontSize: "12px",
-              fontWeight: 600,
+            className="lib-cta-card"
+            onClick={() => router.push("/#summarizer")}
+          >
+            <div>
+              <div style={{
+                width: "42px", height: "42px", borderRadius: "12px",
+                background: "#E8590A",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                marginBottom: "16px",
+                boxShadow: "0 0 24px rgba(232,89,10,0.45)",
+              }}>
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                  <path d="M10 4v12M4 10h12" stroke="white" strokeWidth="2.2" strokeLinecap="round"/>
+                </svg>
+              </div>
+              <p style={{
+                fontFamily: "'Josefin Sans', 'Arial Black', sans-serif",
+                fontSize: "22px",
+                fontWeight: 700,
+                color: "#FFFFFF",
+                letterSpacing: "1px",
+                textTransform: "uppercase",
+                marginBottom: "6px",
+                lineHeight: 1.1,
+              }}>
+                New Summary
+              </p>
+              <p style={{
+                fontFamily: "var(--font-inter), sans-serif",
+                fontSize: "12.5px",
+                color: "rgba(255,255,255,0.38)",
+                lineHeight: 1.6,
+              }}>
+                Upload a doc, paste a URL, or drop an image.
+              </p>
+            </div>
+            <div style={{
+              marginTop: "18px",
+              display: "flex", alignItems: "center", gap: "6px",
+              fontSize: "12px", fontWeight: 700,
               color: "#E8590A",
               fontFamily: "var(--font-inter), sans-serif",
-            }}
-          >
-            Start summarizing →
+              letterSpacing: "0.3px",
+            }}>
+              Start now
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <path d="M3 7h8M7.5 3.5l4 3.5-4 3.5" stroke="#E8590A" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* ── Recent Documents ── */}
-      <div
-        style={{
-          background: "rgba(255,255,255,0.02)",
-          border: "1px solid rgba(255,255,255,0.06)",
-          borderRadius: "20px",
-          overflow: "hidden",
-        }}
-      >
-        {/* Section header */}
+        {/* ── DOCUMENTS SECTION ── */}
         <div
+          className="lib-anim lib-anim-3"
           style={{
-            padding: "18px 24px",
+            background: "rgba(255,255,255,0.02)",
+            border: "1px solid rgba(255,255,255,0.07)",
+            borderRadius: "20px",
+            overflow: "hidden",
+          }}
+        >
+          {/* Section toolbar */}
+          <div style={{
+            padding: "16px 20px",
             borderBottom: "1px solid rgba(255,255,255,0.06)",
             display: "flex",
             alignItems: "center",
-            justifyContent: "space-between",
-            flexWrap: "wrap",
             gap: "12px",
-          }}
-        >
-          <h3
-            style={{
-              fontFamily: "var(--font-bebas), sans-serif",
-              fontSize: "20px",
-              fontWeight: 400,
-              color: "#FFFFFF",
-              letterSpacing: "0.5px",
-            }}
-          >
-            Recent Documents
-          </h3>
+            flexWrap: "wrap",
+          }}>
+            {/* Search */}
+            <div style={{ position: "relative", flex: "1", minWidth: "180px", maxWidth: "300px" }}>
+              <svg
+                width="15" height="15" viewBox="0 0 20 20" fill="none"
+                style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}
+              >
+                <circle cx="8.5" cy="8.5" r="5.5" stroke="rgba(255,255,255,0.25)" strokeWidth="1.6"/>
+                <path d="M13 13l3.5 3.5" stroke="rgba(255,255,255,0.25)" strokeWidth="1.6" strokeLinecap="round"/>
+              </svg>
+              <input
+                className="lib-search"
+                type="text"
+                placeholder="Search documents…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
 
-          {/* Filter tabs */}
-          <div
-            style={{
+            {/* Spacer */}
+            <div style={{ flex: 1 }} />
+
+            {/* Filter chips */}
+            <div style={{
               display: "flex",
-              gap: "4px",
+              gap: "3px",
               background: "rgba(255,255,255,0.04)",
               borderRadius: "10px",
               padding: "3px",
+            }}>
+              {FILTERS.map((f) => (
+                <button
+                  key={f}
+                  className={`lib-chip ${filter === f ? "lib-chip-active" : "lib-chip-inactive"}`}
+                  onClick={() => setFilter(f)}
+                >
+                  {f}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Section title row */}
+          <div style={{
+            padding: "16px 22px 4px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}>
+            <h3 style={{
+              fontFamily: "'Josefin Sans', 'Arial Black', sans-serif",
+              fontSize: "16px",
+              fontWeight: 700,
+              color: "rgba(255,255,255,0.6)",
+              letterSpacing: "2px",
+              textTransform: "uppercase",
+            }}>
+              {filter === "All" ? "All Documents" : `${filter} Files`}
+            </h3>
+            <span style={{
+              fontFamily: "var(--font-inter), sans-serif",
+              fontSize: "11px",
+              color: "rgba(255,255,255,0.2)",
+            }}>
+              {filtered.length} {filtered.length === 1 ? "result" : "results"}
+            </span>
+          </div>
+
+          {/* Cards grid */}
+          <div
+            className="lib-card-grid"
+            style={{
+              padding: "16px 20px 22px",
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))",
+              gap: "12px",
             }}
           >
-            {FILTERS.map((f) => (
-              <button
-                key={f}
-                onClick={() => setFilter(f)}
-                style={{
-                  padding: "5px 12px",
-                  borderRadius: "7px",
-                  border: "none",
-                  background:
-                    filter === f ? "rgba(232,89,10,0.9)" : "transparent",
-                  color:
-                    filter === f ? "white" : "rgba(255,255,255,0.35)",
-                  fontSize: "11px",
-                  fontWeight: filter === f ? 600 : 400,
-                  cursor: "pointer",
-                  transition: "all 0.15s",
+            {filtered.length > 0 ? (
+              filtered.map((doc) => (
+                <DocumentCard key={doc._id} doc={doc} />
+              ))
+            ) : (
+              <div style={{
+                gridColumn: "1 / -1",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                padding: "56px 24px",
+                gap: "12px",
+              }}>
+                <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
+                  <circle cx="18" cy="18" r="17" stroke="rgba(255,255,255,0.07)" strokeWidth="1.5"/>
+                  <path d="M12 18h12M12 13h12M12 23h8" stroke="rgba(255,255,255,0.12)" strokeWidth="1.5" strokeLinecap="round"/>
+                </svg>
+                <p style={{
                   fontFamily: "var(--font-inter), sans-serif",
-                }}
-              >
-                {f}
-              </button>
-            ))}
+                  fontSize: "13px",
+                  color: "rgba(255,255,255,0.18)",
+                  textAlign: "center",
+                }}>
+                  No documents match your search.
+                </p>
+              </div>
+            )}
           </div>
         </div>
-
-        {/* Cards grid */}
-        <div
-          style={{
-            padding: "20px 24px",
-            display: "grid",
-            gridTemplateColumns:
-              "repeat(auto-fill, minmax(260px, 1fr))",
-            gap: "14px",
-          }}
-        >
-          {filtered.length > 0 ? (
-            filtered.map((doc) => (
-              <DocumentCard key={doc._id} doc={doc} />
-            ))
-          ) : (
-            <div
-              style={{
-                gridColumn: "1 / -1",
-                textAlign: "center",
-                padding: "48px",
-                color: "rgba(255,255,255,0.2)",
-                fontSize: "14px",
-                fontFamily: "var(--font-inter), sans-serif",
-              }}
-            >
-              No documents found for this filter.
-            </div>
-          )}
-        </div>
       </div>
-    </div>
+    </>
   );
 }

@@ -24,9 +24,9 @@ export default function OutputTypeSelector({ value, onChange }: Props) {
           <button key={o.id} onClick={() => onChange(o.id)}
                   className="px-4 py-2 rounded-full border text-xs font-medium transition-all"
                   style={{
-                    background:  value === o.id ? "#E8590A" : "white",
-                    borderColor: value === o.id ? "#E8590A" : "#D0D0D0",
-                    color:       value === o.id ? "white"   : "#555",
+                    background:  value === o.id ? "#E8590A" : "#1A1A1A",
+                    borderColor: value === o.id ? "#E8590A" : "#333",
+                    color:       value === o.id ? "white"   : "#CCC",
                   }}>
             {o.label}
           </button>

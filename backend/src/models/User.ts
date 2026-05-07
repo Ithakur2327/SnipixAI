@@ -16,7 +16,6 @@ const UserSchema = new Schema<IUser>(
   { timestamps: true }
 );
 
-// Hash password before save
 UserSchema.pre("save", async function (next) {
   if (!this.isModified("passwordHash")) return next();
   const salt = await bcrypt.genSalt(10);
@@ -24,14 +23,10 @@ UserSchema.pre("save", async function (next) {
   next();
 });
 
-// Compare password
-UserSchema.methods.comparePassword = async function (
-  password: string
-): Promise<boolean> {
+UserSchema.methods.comparePassword = async function (password: string): Promise<boolean> {
   return bcrypt.compare(password, this.passwordHash);
 };
 
-// Public JSON
 UserSchema.methods.toPublicJSON = function () {
   const user = this.toObject();
   delete user.passwordHash;

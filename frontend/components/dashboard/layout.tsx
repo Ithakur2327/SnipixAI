@@ -9,7 +9,7 @@ export default function DashboardLayout({
     <div
       style={{
         minHeight: "100vh",
-        background: "#0F0F14",
+        background: "#000000",
         display: "flex",
         flexDirection: "column",
       }}

@@ -8,11 +8,13 @@ const SourceSchema = new Schema(
 
 const ChatMessageSchema = new Schema<IChatMessage>(
   {
-    documentId: { type: Schema.Types.ObjectId, ref: "Document", required: true, index: true },
-    userId:     { type: Schema.Types.ObjectId, ref: "User",     required: true },
-    role:       { type: String, enum: ["user", "assistant"],    required: true },
-    content:    { type: String,                                  required: true },
-    sources:    { type: [SourceSchema],                          default: []   },
+    documentId:       { type: Schema.Types.ObjectId, ref: "Document", required: true, index: true },
+    userId:           { type: Schema.Types.ObjectId, ref: "User",     required: true },
+    role:             { type: String, enum: ["user", "assistant"],    required: true },
+    content:          { type: String,                                  required: true },
+    sources:          { type: [SourceSchema],                          default: []   },
+    modelName:        { type: String,                                  default: null },
+    processingTimeMs: { type: Number,                                  default: null },
   },
   { timestamps: true }
 );

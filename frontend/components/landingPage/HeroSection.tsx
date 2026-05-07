@@ -62,7 +62,7 @@ export default function HeroSection() {
         paddingTop: "0",
         display: "flex",
         flexDirection: "column",
-        background: "rgba(15,15,20,0.7)",
+        background: "#000000",
       }}
     >
       <style>{`
@@ -142,8 +142,26 @@ export default function HeroSection() {
           background: rgba(232,89,10,0.5) !important;
         }
 
-        @media (max-width: 768px) {
-          h1 { white-space: normal !important; }
+        .snipix-panel { display: flex; flex-direction: row; align-items: stretch; }
+        .snipix-panel-left { width: 50%; min-width: 320px; }
+        .snipix-panel-right { width: auto; }
+        .snipix-supported-bar { padding: 0 16px clamp(20px, 4vw, 34px); }
+
+        @media (max-width: 980px) {
+          .snipix-panel { flex-direction: column !important; min-height: auto !important; }
+          .snipix-panel-left, .snipix-panel-right { width: 100% !important; min-width: 0 !important; }
+          .snipix-divider-bar { width: 100% !important; height: 5px !important; cursor: row-resize !important; }
+          .snipix-divider-bar > div { flex-direction: row !important; gap: 8px !important; }
+          .snipix-divider-bar > div > div { width: 6px !important; height: 6px !important; }
+          .snipix-panel-left, .snipix-panel-right { border-radius: 0 !important; }
+          .snipix-panel { margin: 0 12px 24px !important; }
+        }
+
+        @media (max-width: 760px) {
+          h1 { font-size: clamp(24px, 7vw, 32px); white-space: normal !important; }
+          .snipix-sub { max-width: 100% !important; padding: 0 10px; }
+          .snipix-supported-bar { padding: 0 10px clamp(20px, 4vw, 28px) !important; }
+          .snipix-tooltip-pop { bottom: 18px !important; font-size: 11px !important; }
         }
       `}</style>
 
@@ -316,6 +334,7 @@ export default function HeroSection() {
       >
         {/* LEFT — Upload Panel */}
         <div
+          className="snipix-panel-left"
           style={{
             width: `${splitPercent}%`,
             background: "#13131A",
@@ -354,7 +373,7 @@ export default function HeroSection() {
                   width: "3px",
                   height: "3px",
                   borderRadius: "50%",
-                  background: isDragging ? "white" : "rgba(255,255,255,0.25)",
+                  background: isDragging ? "#E8590A" : "rgba(255,255,255,0.25)",
                   transition: "background 0.2s ease",
                 }}
               />
@@ -364,9 +383,10 @@ export default function HeroSection() {
 
         {/* RIGHT — Result Panel */}
         <div
+          className="snipix-panel-right"
           style={{
             flex: 1,
-            background: "#0F0F14",
+            background: "#000000",
             padding: "clamp(16px, 2.5vw, 28px)",
             overflow: "auto",
             overflowX: "hidden",
@@ -406,6 +426,7 @@ export default function HeroSection() {
           SUPPORTED FORMATS BAR
       ══════════════════════════════ */}
       <div
+        className="snipix-supported-bar"
         style={{
           display: "flex",
           alignItems: "center",

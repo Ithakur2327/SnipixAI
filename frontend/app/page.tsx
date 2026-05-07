@@ -7,7 +7,7 @@ export default function HomePage() {
   return (
     <>
       <Navbar />
-      <main className="snx-page" style={{ background: "#0F0F14", minHeight: "100vh" }}>
+      <main className="snx-page" style={{ background: "#000000", minHeight: "100vh" }}>
         <div style={{ paddingTop: "64px" }}>
           <HeroSection />
           <AboutSection />

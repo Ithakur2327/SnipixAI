@@ -20,6 +20,7 @@ export interface IUser extends MongoDoc {
   usageCount: number;
   usageLimit: number;
   isActive: boolean;
+  avatarUrl: string | null;
   createdAt: Date;
   updatedAt: Date;
   comparePassword(password: string): Promise<boolean>;
@@ -51,19 +52,15 @@ export interface ISummary extends MongoDoc {
   userId: Types.ObjectId;
   outputType: OutputType;
   content: unknown;
-
-  modelName: string; // ✅ FIXED
-
+  modelName: string;
   promptTokens: number;
   completionTokens: number;
   processingTimeMs: number;
-
   tokenUsage?: {
     prompt: number;
     completion: number;
     total: number;
   };
-
   createdAt: Date;
 }
 
@@ -88,10 +85,11 @@ export interface IChatMessage extends MongoDoc {
     chunkText: string;
     score: number;
   }>;
+  modelName: string | null;
+  processingTimeMs: number | null;
   createdAt: Date;
 }
 
-// TextChunk — used by chunker, embedder, vectorStore
 export interface TextChunk {
   chunkId:    string;
   text:       string;
@@ -106,7 +104,6 @@ export interface TextChunk {
   };
 }
 
-// RetrievedChunk — returned by similaritySearch
 export interface RetrievedChunk {
   chunkId: string;
   score:   number;

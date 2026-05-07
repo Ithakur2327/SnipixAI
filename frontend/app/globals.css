@@ -7,10 +7,10 @@
 :root {
   --orange: #E8590A;
   --orange-pale: #FFF3E0;
-  --gray-bg: #EDEDED;
-  --gray-dark: #1A1A1A;
-  --gray-mid: #888888;
-  --gray-border: #D8D8D8;
+  --gray-bg: #000000;
+  --gray-dark: #0C0C0C;
+  --gray-mid: #6E6E6E;
+  --gray-border: #222222;
   --font-inter: 'Inter', 'Segoe UI', sans-serif;
   --font-bebas: 'Segoe UI', sans-serif;
   --font-raleway: 'Raleway', sans-serif;
@@ -24,22 +24,22 @@
 }
 
 html {
-  scroll-behavior: smooth;
+  scroll-behavior: auto;
 }
 
 body {
   font-family: 'Inter', 'Segoe UI', sans-serif;
   
-  /* ✅ FIX: make base transparent */
-  background-color: transparent;
+  /* Dark theme background */
+  background-color: #000000;
 
-  color: #1A1A1A;
+  color: #E0E0E0;
   -webkit-font-smoothing: antialiased;
 }
 
 /* ✅ add wrapper instead of body bg */
 .main-bg {
-  background-color: #EDEDED;
+  background-color: #000000;
   min-height: 100vh;
 }
 

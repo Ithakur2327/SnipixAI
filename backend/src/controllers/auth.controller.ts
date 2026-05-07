@@ -21,8 +21,7 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
 export const login = asyncHandler(async (req: Request, res: Response) => {
   const { email, password } = req.body;
 
-  // passwordHash has no select:false so no need for +passwordHash
-  const user = await User.findOne({ email });
+  const user = await User.findOne({ email }).select("+passwordHash");
   if (!user) throw new AppError("Invalid credentials", 401);
 
   if (!user.isActive) throw new AppError("Account deactivated", 403);
