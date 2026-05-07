@@ -34,7 +34,21 @@ export default function UploadPage() {
       if (method === "file") {
         if (!file) { setError("Please select a file"); setLoading(false); return; }
         const formData = new FormData();
+        const mime = file.type;
+        const sourceType = mime === "application/pdf"
+          ? "pdf"
+          : mime === "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+          ? "docx"
+          : mime === "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+          ? "ppt"
+          : mime === "text/plain"
+          ? "txt"
+          : mime.startsWith("image/")
+          ? "image"
+          : "pdf";
         formData.append("file", file);
+        formData.append("sourceType", sourceType);
+        formData.append("title", file.name);
         formData.append("outputType", outputType);
         res = await documentAPI.uploadFile(formData);
       } else if (method === "url") {

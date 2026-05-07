@@ -54,6 +54,17 @@ export const errorHandler = (
     });
   }
 
+  if (err.name === "InsufficientQuotaError" || (err as any).statusCode === 429) {
+    return res.status(429).json({
+      success: false,
+      error: {
+        code: (err as any).name || "OPENAI_QUOTA",
+        message: err.message,
+        statusCode: 429,
+      },
+    });
+  }
+
   logger.error("Unhandled error:", err);
 
   res.status(500).json({

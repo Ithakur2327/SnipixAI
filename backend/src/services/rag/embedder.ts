@@ -16,6 +16,15 @@ const getEmbedder = (): OpenAIEmbeddings => {
 };
 
 export const embedChunks = async (chunks: TextChunk[]): Promise<TextChunk[]> => {
+  // Mock mode when OpenAI is not available
+  if (!env.OPENAI_API_KEY) {
+    logger.info(`[MOCK] Mock embedding ${chunks.length} chunks...`);
+    return chunks.map((chunk) => ({
+      ...chunk,
+      vector: Array.from({ length: env.PINECONE_DIMENSION }, () => Math.random())
+    }));
+  }
+
   const embedder = getEmbedder();
   const texts    = chunks.map((c) => c.text);
 
@@ -26,5 +35,11 @@ export const embedChunks = async (chunks: TextChunk[]): Promise<TextChunk[]> => 
 };
 
 export const embedQuery = async (query: string): Promise<number[]> => {
+  // Mock mode when OpenAI is not available
+  if (!env.OPENAI_API_KEY) {
+    logger.info(`[MOCK] Mock embedding query...`);
+    return Array.from({ length: env.PINECONE_DIMENSION }, () => Math.random());
+  }
+
   return getEmbedder().embedQuery(query);
 };

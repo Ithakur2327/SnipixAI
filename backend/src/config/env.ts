@@ -20,12 +20,12 @@ export const env = {
   CLOUDINARY_API_KEY:    required("CLOUDINARY_API_KEY"),
   CLOUDINARY_API_SECRET: required("CLOUDINARY_API_SECRET"),
 
-  OPENAI_API_KEY:         required("OPENAI_API_KEY"),
+  OPENAI_API_KEY:         process.env.OPENAI_API_KEY, // Make optional for mock mode
   OPENAI_EMBEDDING_MODEL: process.env.OPENAI_EMBEDDING_MODEL || "text-embedding-3-small",
   OPENAI_CHAT_MODEL:      process.env.OPENAI_CHAT_MODEL      || "gpt-4o-mini",
   OPENAI_SUMMARIZE_MODEL: process.env.OPENAI_SUMMARIZE_MODEL || "gpt-4o-mini",
 
-  PINECONE_API_KEY:   required("PINECONE_API_KEY"),
+  PINECONE_API_KEY:   process.env.PINECONE_API_KEY, // Make optional for mock mode
   PINECONE_INDEX:     process.env.PINECONE_INDEX     || "snipixai",
   PINECONE_DIMENSION: Number(process.env.PINECONE_DIMENSION) || 1536,
 

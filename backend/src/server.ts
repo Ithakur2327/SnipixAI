@@ -23,9 +23,19 @@ const PORT = process.env.PORT || 5000;
 app.use(helmet());
 app.use(compression());
 app.use(morgan("dev"));
+const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:3000";
 app.use(cors({
-  origin:      process.env.CLIENT_URL || "http://localhost:3000",
+  origin: CLIENT_URL,
   credentials: true,
+  allowedHeaders: ["Content-Type", "Authorization"],
+  exposedHeaders: ["Authorization"],
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+}));
+app.options("*", cors({
+  origin: CLIENT_URL,
+  credentials: true,
+  allowedHeaders: ["Content-Type", "Authorization"],
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
 }));
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));

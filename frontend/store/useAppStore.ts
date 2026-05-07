@@ -26,12 +26,18 @@ export const useAppStore = create<AppState>()(
       isAuthenticated: false,
 
       setAuth: (user, token) => {
-        localStorage.setItem("snipix_token", token);
+        // Keep direct key in sync so axios interceptor always finds it
+        if (typeof window !== "undefined") {
+          localStorage.setItem("snipix_token", token);
+        }
         set({ user, token, isAuthenticated: true });
       },
 
       logout: () => {
-        localStorage.removeItem("snipix_token");
+        if (typeof window !== "undefined") {
+          localStorage.removeItem("snipix_token");
+          localStorage.removeItem("snipix-auth");
+        }
         set({ user: null, token: null, isAuthenticated: false });
       },
     }),

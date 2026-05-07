@@ -11,7 +11,19 @@ export const uploadFile = async (req: AuthRequest, res: Response) => {
   const file = req.file as any;
   if (!file) throw new AppError("No file uploaded", 400);
 
-  const sourceType = (req.body.sourceType as SourceType) || "pdf";
+  const mimeToSourceType = (mime: string): SourceType => {
+    switch (mime) {
+      case "application/pdf": return "pdf";
+      case "application/vnd.openxmlformats-officedocument.wordprocessingml.document": return "docx";
+      case "application/vnd.openxmlformats-officedocument.presentationml.presentation": return "ppt";
+      case "text/plain": return "txt";
+      case "image/png":
+      case "image/jpeg": return "image";
+      default: return "pdf";
+    }
+  };
+
+  const sourceType = (req.body.sourceType as SourceType) || mimeToSourceType(file.mimetype);
   const title      = (req.body.title as string) || file.originalname;
 
   const doc = await Document.create({

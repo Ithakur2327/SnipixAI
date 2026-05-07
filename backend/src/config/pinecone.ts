@@ -5,6 +5,12 @@ import { logger }   from "./logger";
 let _index: ReturnType<Pinecone["index"]> | null = null;
 
 export const initPinecone = async (): Promise<void> => {
+  // Skip initialization if no API key (mock mode)
+  if (!env.PINECONE_API_KEY) {
+    logger.info("[MOCK] Skipping Pinecone initialization - using mock mode");
+    return;
+  }
+
   try {
     const pc = new Pinecone({ apiKey: env.PINECONE_API_KEY });
     const existing = (await pc.listIndexes()).indexes?.map((i) => i.name) ?? [];

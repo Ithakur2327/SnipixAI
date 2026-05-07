@@ -15,6 +15,7 @@ import { asyncHandler } from "../utils/asynchandler";
 
 const router = Router();
 
+router.options("*", (_req, res) => res.sendStatus(204));
 router.use(protect);
 
 router.post("/upload", checkQuota, upload.single("file"), asyncHandler(uploadFile));

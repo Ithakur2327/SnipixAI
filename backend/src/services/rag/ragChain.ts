@@ -25,6 +25,22 @@ export const generateRAGAnswer = async (
 ) => {
   const start = Date.now();
 
+  // Mock mode when OpenAI is not available
+  if (!env.OPENAI_API_KEY) {
+    logger.info("[MOCK] Using mock RAG answer");
+    const ms = Date.now() - start;
+    return {
+      answer: `Mock answer: Based on the document content, ${question.toLowerCase().includes('what') ? 'the document discusses key points and insights' : 'here are the relevant findings'}. This is a simulated response for testing purposes.`,
+      model: "mock-gpt-4o",
+      processingMs: ms,
+      sources: chunks.slice(0, 3).map((c, i) => ({
+        chunkId: c.chunkId,
+        score: c.score,
+        chunkText: c.text.slice(0, 200),
+      })),
+    };
+  }
+
   const context = chunks
     .map((c, i) => `[Chunk ${i + 1} | Score: ${c.score}]\n${c.text}`)
     .join("\n\n---\n\n");
@@ -79,6 +95,53 @@ export const generateSummary = async (
   const start  = Date.now();
   const text   = rawText.slice(0, 48_000);
   const suffix = PROMPTS[outputType];
+
+  // Mock mode when OpenAI is not available
+  if (!env.OPENAI_API_KEY) {
+    console.log("[MOCK] Using mock summary response");
+    const mockResponses: Record<OutputType, any> = {
+      tldr: "This document contains important information about the topic discussed.",
+      bullets: [
+        "Key point 1: Important information extracted from the document",
+        "Key point 2: Additional insights from the content",
+        "Key point 3: Main conclusions and findings",
+        "Key point 4: Recommendations and next steps",
+        "Key point 5: Summary of key metrics or data points"
+      ],
+      key_insights: [
+        "Strategic insight: The document reveals important patterns",
+        "Market insight: Competitive landscape analysis",
+        "Operational insight: Process improvements identified",
+        "Financial insight: Cost optimization opportunities",
+        "Risk insight: Potential challenges and mitigation strategies"
+      ],
+      action_points: [
+        "Implement recommended changes immediately",
+        "Schedule follow-up meetings with stakeholders",
+        "Conduct additional research on identified gaps",
+        "Update documentation and procedures",
+        "Monitor progress and adjust as needed"
+      ],
+      section_summary: [
+        { section: "Introduction", summary: "Overview of the main topic and objectives" },
+        { section: "Analysis", summary: "Detailed examination of data and findings" },
+        { section: "Conclusions", summary: "Key takeaways and recommendations" },
+        { section: "Recommendations", summary: "Specific actions and next steps" }
+      ]
+    };
+
+    const ms = Date.now() - start;
+    return {
+      content: mockResponses[outputType],
+      model: "mock-gpt-4o",
+      processingTimeMs: ms,
+      tokenUsage: {
+        prompt: 100,
+        completion: 50,
+        total: 150,
+      },
+    };
+  }
 
   const llm = getLLM();
   const res = await llm.invoke([

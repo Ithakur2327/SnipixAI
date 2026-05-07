@@ -8,8 +8,23 @@ const api = axios.create({
 
 api.interceptors.request.use((config) => {
   if (typeof window !== "undefined") {
-    const token = localStorage.getItem("snipix_token");
-    if (token) config.headers.Authorization = `Bearer ${token}`;
+    let token = localStorage.getItem("snipix_token");
+
+    if (!token) {
+      try {
+        const persisted = localStorage.getItem("snipix-auth");
+        if (persisted) {
+          const parsed = JSON.parse(persisted);
+          token = parsed?.state?.token ?? null;
+          if (token) localStorage.setItem("snipix_token", token);
+        }
+      } catch {}
+    }
+
+    if (token) {
+      config.headers = config.headers ?? {};
+      (config.headers as Record<string, string>).Authorization = `Bearer ${token}`;
+    }
   }
   return config;
 });
@@ -22,13 +37,13 @@ api.interceptors.response.use(
       if (typeof window !== "undefined") {
         localStorage.removeItem("snipix_token");
         localStorage.removeItem("snipix_user");
+        localStorage.removeItem("snipix-auth");
       }
     }
     return Promise.reject(error || err);
   }
 );
 
-// ── Auth ──────────────────────────────────────────────────
 export const authAPI = {
   register: (data: { name: string; email: string; password: string }) =>
     api.post("/auth/register", data),
@@ -38,16 +53,13 @@ export const authAPI = {
   logout: () => api.post("/auth/logout"),
 };
 
-// ── Documents ─────────────────────────────────────────────
 export const documentAPI = {
   list: (page = 1, limit = 20) =>
     api.get("/documents", { params: { page, limit } }),
   get: (id: string) => api.get(`/documents/${id}`),
   status: (id: string) => api.get(`/documents/${id}/status`),
   uploadFile: (formData: FormData) =>
-    api.post("/documents/upload", formData, {
-      headers: { "Content-Type": "multipart/form-data" },
-    }),
+    api.post("/documents/upload", formData),
   submitUrl: (url: string, title?: string) =>
     api.post("/documents/url", { url, title }),
   submitText: (text: string, title?: string) =>
@@ -55,7 +67,6 @@ export const documentAPI = {
   delete: (id: string) => api.delete(`/documents/${id}`),
 };
 
-// ── Summaries ─────────────────────────────────────────────
 export const summaryAPI = {
   create: (documentId: string, outputType: string) =>
     api.post(`/summaries/${documentId}`, { outputType }),
@@ -63,7 +74,6 @@ export const summaryAPI = {
   delete: (id: string) => api.delete(`/summaries/${id}`),
 };
 
-// ── RAG / Chat ────────────────────────────────────────────
 export const ragAPI = {
   chat: (documentId: string, question: string, topK = 5) =>
     api.post(`/rag/${documentId}/chat`, { question, topK }),
@@ -73,7 +83,6 @@ export const ragAPI = {
     api.delete(`/rag/${documentId}/chat`),
 };
 
-// ── User ──────────────────────────────────────────────────
 export const userAPI = {
   profile: () => api.get("/users/profile"),
   updateProfile: (data: { name?: string; avatarUrl?: string }) =>

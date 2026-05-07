@@ -67,7 +67,6 @@ export default function DocumentCard({ doc }: { doc: Document }) {
         className={`doc-card${isReady ? " ready" : ""}`}
         onClick={() => isReady && setOpen(true)}
       >
-        {/* Top row — type badge + status */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "14px" }}>
           <span style={{
             fontSize: "9.5px", fontWeight: 700,
@@ -89,7 +88,6 @@ export default function DocumentCard({ doc }: { doc: Document }) {
           </span>
         </div>
 
-        {/* Icon + title */}
         <div style={{ display: "flex", alignItems: "flex-start", gap: "12px", marginBottom: "14px" }}>
           <div style={{
             width: "38px", height: "38px", borderRadius: "10px",
@@ -124,7 +122,6 @@ export default function DocumentCard({ doc }: { doc: Document }) {
           </div>
         </div>
 
-        {/* Footer */}
         <div style={{
           display: "flex", alignItems: "center", justifyContent: "space-between",
           paddingTop: "12px",

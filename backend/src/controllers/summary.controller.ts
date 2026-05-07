@@ -11,9 +11,13 @@ export const createSummary = async (req: AuthRequest, res: Response) => {
   const { outputType } = req.body as { outputType: OutputType };
 
   const doc = await Document.findOne({ _id: documentId, userId: req.user!._id });
-  if (!doc)                   throw new AppError("Document not found", 404);
-  if (doc.status !== "ready") throw new AppError("Document is still processing", 409, "NOT_READY");
-  if (!doc.rawText)           throw new AppError("Document has no extracted text", 422);
+  if (!doc) throw new AppError("Document not found", 404);
+  if (!doc.rawText) throw new AppError("Document has no extracted text", 422);
+
+  // Allow summaries once text extraction is complete, even if the RAG embedding pipeline is still pending.
+  if (doc.status !== "ready" && doc.status !== "extracting") {
+    throw new AppError("Document is still processing", 409, "NOT_READY");
+  }
 
   // Return existing if already generated
   const existing = await Summary.findOne({ documentId, userId: req.user!._id, outputType });

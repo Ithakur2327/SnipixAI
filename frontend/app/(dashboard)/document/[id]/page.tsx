@@ -59,16 +59,16 @@ export default function DocumentPage({ params }: { params: { id: string } }) {
     return () => clearInterval(interval);
   }, [doc?.status, params.id]);
 
-  // Generate summary when doc is ready
+  // Generate summary when doc is ready or raw text is already extracted
   useEffect(() => {
-    if (!doc || doc.status !== "ready") return;
+    if (!doc || (!doc.rawText && doc.status !== "ready")) return;
     setSummaryLoading(true);
     setSummary(null);
     summaryAPI.create(params.id, outputType)
       .then((res) => setSummary(res.data.data))
       .catch((err) => setError(err?.message || "Failed to generate summary"))
       .finally(() => setSummaryLoading(false));
-  }, [doc?.status, outputType, params.id]);
+  }, [doc?.status, doc?.rawText, outputType, params.id]);
 
   const type = TYPE_CONFIG[doc?.sourceType] ?? TYPE_CONFIG["txt"];
 
