@@ -2,6 +2,8 @@
 import { useState, useRef } from "react";
 import UploadPanel from "./UploadPanel";
 import ResultPanel from "./ResultPanel";
+import api from "@/lib/api";
+import { useAppStore } from "@/store/useAppStore";
 
 export default function HeroSection() {
   const [result, setResult] = useState<string[] | null>(null);
@@ -10,23 +12,71 @@ export default function HeroSection() {
   const [splitPercent, setSplitPercent] = useState(50);
   const [isDragging, setIsDragging] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const { isAuthenticated } = useAppStore();
 
-  const handleGenerate = (text: string, type: string) => {
-    setOutputType(type);
-    setLoading(true);
-    setResult(null);
+  const handleGenerate = async (text: string, type: string) => {
+  setOutputType(type);
+  setLoading(true);
+  setResult(null);
+
+  // Agar login nahi hai toh mock data dikhao
+  if (!isAuthenticated) {
     setTimeout(() => {
       setLoading(false);
       setResult([
-        "Revenue grew 23% YoY driven by enterprise segment expansion",
-        "Customer churn decreased significantly from 8% down to 5.2%",
-        "Three new product launches are scheduled for Q4 2024",
-        "APAC region showed 41% growth, becoming second largest market",
-        "Operating margin improved to 18.4% due to efficiency gains",
-        "New partnerships signed with 3 Fortune 500 companies",
+        "Login karein real AI summarization ke liye",
+        "Yeh ek demo result hai",
+        "Sign up karo free mein aur real documents summarize karo",
       ]);
-    }, 2000);
-  };
+    }, 1500);
+    return;
+  }
+
+  try {
+    // Step 1: raw text submit karo
+    const { data: docData } = await api.post("/documents/text", {
+      text,
+      title: `Summary - ${new Date().toLocaleDateString()}`,
+    });
+    const documentId = docData.data.documentId;
+
+    // Step 2: Poll karo jab tak ready na ho
+    let status = "extracting";
+    let attempts = 0;
+    while (status !== "ready" && status !== "failed" && attempts < 30) {
+      await new Promise((r) => setTimeout(r, 2000));
+      const { data: statusData } = await api.get(`/documents/${documentId}/status`);
+      status = statusData.data.status;
+      attempts++;
+    }
+
+    if (status === "failed") {
+      setResult(["Document processing failed. Please try again."]);
+      setLoading(false);
+      return;
+    }
+
+    // Step 3: Summary generate karo
+    const { data: summaryData } = await api.post(`/summaries/${documentId}`, {
+      outputType: type,
+    });
+
+    const content = summaryData.data.content;
+    if (Array.isArray(content)) {
+      setResult(content);
+    } else if (typeof content === "string") {
+      setResult([content]);
+    } else {
+      setResult([JSON.stringify(content)]);
+    }
+  } catch (err: any) {
+    setResult([
+      err?.message || "Something went wrong. Please try again.",
+    ]);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const startDrag = (e: React.MouseEvent | React.TouchEvent) => {
     e.preventDefault();

@@ -120,6 +120,36 @@ export default function AboutSection() {
           transform: translateY(-3px);
           box-shadow: 0 12px 32px rgba(0, 0, 0, 0.2);
         }
+
+        .snx-about-section { padding: 72px 32px; overflow-x: hidden; }
+        .snx-about-content { max-width: 1160px; margin: 0 auto; }
+        .snx-feature-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: stretch; }
+        .snx-feature-card-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; grid-auto-rows: 1fr; }
+        .snx-right-box { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); border-radius: 20px; padding: 36px 32px; }
+        .snx-steps-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 22px; }
+        .snx-step-card { padding: 0 20px; position: relative; display: flex; flex-direction: column; align-items: center; text-align: center; }
+
+        @media (max-width: 980px) {
+          .snx-about-section { padding: 52px 20px; }
+          .snx-feature-grid, .snx-steps-grid { grid-template-columns: 1fr; }
+          .snx-feature-card-grid { gap: 16px; }
+          .snx-right-box { padding: 28px 22px; }
+          .snx-step-card { padding: 16px 14px; }
+          .snx-step-connector { display: none !important; }
+        }
+
+        @media (max-width: 680px) {
+          .snx-about-section { padding: 40px 14px; }
+          .snx-about-heading { font-size: clamp(28px, 9vw, 36px); }
+          .snx-about-desc { font-size: 14px; max-width: 100%; margin-bottom: 30px; }
+          .snx-right-box { padding: 24px 18px; }
+          .snx-feature-card { padding: 18px 16px !important; }
+          .snx-steps-grid { gap: 16px; }
+          .snx-step-card { padding: 14px 12px; }
+          .snx-step-card h3 { font-size: 13.5px; }
+          .snx-step-card p { font-size: 12px; }
+          .snx-step-connector { display: none !important; }
+        }
       `}</style>
       {/* ══════════════ ABOUT ══════════════ */}
       <section
@@ -177,10 +207,10 @@ export default function AboutSection() {
           </p>
 
           {/* Two-col */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px", alignItems: "stretch" }}>
+          <div className="snx-feature-grid">
 
             {/* Left — feature cards */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px", gridAutoRows: "1fr" }}>
+            <div className="snx-feature-card-grid">
               {FEATURES.map((f) => (
                 <div
                   key={f.title}
@@ -210,10 +240,7 @@ export default function AboutSection() {
             </div>
 
             {/* Right — tech badges + bullets */}
-            <div style={{
-              background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)",
-              borderRadius: "20px", padding: "36px 32px",
-            }}>
+            <div className="snx-right-box">
               <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "28px" }}>
                 {["GPT-4o", "LangChain", "Pinecone", "OCR", "Cloudinary"].map((tech) => (
                   <span key={tech} style={{
@@ -303,13 +330,13 @@ export default function AboutSection() {
           </p>
 
           {/* Steps row */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)" }}>
+          <div className="snx-steps-grid">
             {STEPS.map((s, i) => (
-              <div key={s.num} style={{ padding: "0 20px", position: "relative", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
+              <div key={s.num} className="snx-step-card">
 
                 {/* Connector line: icon right-edge → next icon left-edge (centered layout) */}
                 {i < STEPS.length - 1 && (
-                  <div style={{
+                  <div className="snx-step-connector" style={{
                     position: "absolute",
                     top: "26px",       // half of 52px icon
                     left: "calc(50% + 26px)",   // center of this col + half icon width
