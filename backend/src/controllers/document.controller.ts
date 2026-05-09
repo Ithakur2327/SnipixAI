@@ -4,12 +4,15 @@ import { AuthRequest, SourceType } from "../types";
 import { ok, paginated }         from "../utils/response";
 import { AppError }              from "../middleware/errorHandler";
 import { processDocument }       from "../services/rag/pipeline";
-import {cloudinary}         from "../config/cloudinary";
+import {cloudinary, validateCloudinaryConfig} from "../config/cloudinary";
 
 // Upload file
 export const uploadFile = async (req: AuthRequest, res: Response) => {
   const file = req.file as any;
   if (!file) throw new AppError("No file uploaded", 400);
+
+  // Validate Cloudinary config before proceeding
+  await validateCloudinaryConfig();
 
   const mimeToSourceType = (mime: string): SourceType => {
     switch (mime) {
@@ -139,9 +142,14 @@ export const getDocumentStatus = async (req: AuthRequest, res: Response) => {
   const doc = await Document.findOne({
     _id:    req.params["id"],
     userId: req.user!._id,
-  }).select("status");
+  }).select("status errorMessage");
   if (!doc) throw new AppError("Document not found", 404);
-  ok(res, { documentId: req.params["id"], status: doc.status, progress: doc.status === "ready" ? 100 : 50 });
+  ok(res, {
+    documentId:   req.params["id"],
+    status:       doc.status,
+    errorMessage: doc.errorMessage,
+    progress:     doc.status === "ready" ? 100 : 50,
+  });
 };
 
 // Delete document

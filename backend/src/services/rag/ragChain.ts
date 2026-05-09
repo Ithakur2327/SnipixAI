@@ -5,6 +5,7 @@ import { logger }                      from "../../config/logger";
 import { RetrievedChunk, OutputType }  from "../../types";
 
 let _llm: ChatOpenAI | null = null;
+let _summaryLlm: ChatOpenAI | null = null;
 
 const getLLM = (): ChatOpenAI => {
   if (!_llm) {
@@ -12,34 +13,31 @@ const getLLM = (): ChatOpenAI => {
       model:        env.OPENAI_CHAT_MODEL,
       openAIApiKey: env.OPENAI_API_KEY,
       temperature:  0.2,
-      maxTokens:    1500,
+      maxTokens:    2000,
     });
   }
   return _llm;
 };
 
+const getSummaryLLM = (): ChatOpenAI => {
+  if (!_summaryLlm) {
+    _summaryLlm = new ChatOpenAI({
+      model:        env.OPENAI_SUMMARIZE_MODEL,
+      openAIApiKey: env.OPENAI_API_KEY,
+      temperature:  0.2,
+      maxTokens:    2000,
+    });
+  }
+  return _summaryLlm;
+};
+
+// ── RAG Chat Answer ─────────────────────────────────────────────────────────
 export const generateRAGAnswer = async (
   question:    string,
   chunks:      RetrievedChunk[],
   chatHistory: Array<{ role: string; content: string }> = []
 ) => {
   const start = Date.now();
-
-  // Mock mode when OpenAI is not available
-  if (!env.OPENAI_API_KEY) {
-    logger.info("[MOCK] Using mock RAG answer");
-    const ms = Date.now() - start;
-    return {
-      answer: `Mock answer: Based on the document content, ${question.toLowerCase().includes('what') ? 'the document discusses key points and insights' : 'here are the relevant findings'}. This is a simulated response for testing purposes.`,
-      model: "mock-gpt-4o",
-      processingMs: ms,
-      sources: chunks.slice(0, 3).map((c, i) => ({
-        chunkId: c.chunkId,
-        score: c.score,
-        chunkText: c.text.slice(0, 200),
-      })),
-    };
-  }
 
   const context = chunks
     .map((c, i) => `[Chunk ${i + 1} | Score: ${c.score}]\n${c.text}`)
@@ -80,12 +78,40 @@ Be concise, use bullet points for lists, never hallucinate.`;
   };
 };
 
+// ── Summary Prompts ──────────────────────────────────────────────────────────
 const PROMPTS: Record<OutputType, string> = {
-  tldr:            "Write a 2-4 sentence TL;DR. Be crisp and direct.",
-  bullets:         "Extract 5-8 key points. Return ONLY a JSON array of strings. No markdown.",
-  key_insights:    "Extract 4-6 strategic insights. Return ONLY a JSON array of strings.",
-  action_points:   "List all action items. Return ONLY a JSON array of strings. Empty array if none.",
-  section_summary: `Identify sections and summarize each. Return ONLY a JSON array: [{"section":"...","summary":"..."}]`,
+  tldr:
+    "Write a clear, comprehensive 3-5 sentence TL;DR summary of the entire document. Be specific and direct.",
+  bullets:
+    "Extract 6-10 key points from this document. Return ONLY a valid JSON array of strings. Example: [\"Point 1\", \"Point 2\"]. No markdown, no explanation, just the JSON array.",
+  key_insights:
+    "Extract 5-8 strategic insights or important takeaways from this document. Return ONLY a valid JSON array of strings. Example: [\"Insight 1\", \"Insight 2\"]. No markdown, just the JSON array.",
+  action_points:
+    "List all action items, tasks, or recommendations mentioned in this document. Return ONLY a valid JSON array of strings. If none, return []. Example: [\"Action 1\", \"Action 2\"]. No markdown, just the JSON array.",
+  section_summary:
+    `Identify major topics/sections in this document and summarize each. Return ONLY a valid JSON array like this exact format: [{"section":"Section Name","summary":"Brief summary here"}]. No markdown, no extra text, just the JSON array.`,
+};
+
+// ── Map-reduce chunked summarization for large documents ─────────────────────
+const CHAR_LIMIT = 55_000; // ~14k tokens, safe for gpt-4o-mini context
+
+const summarizeOneChunk = async (
+  llm:        ChatOpenAI,
+  text:       string,
+  prompt:     string,
+  isPartial:  boolean
+): Promise<string> => {
+  const taskPrompt = isPartial
+    ? "Summarize the key points of this section as concise bullet points."
+    : prompt;
+
+  const res = await llm.invoke([
+    new SystemMessage(
+      "You are an expert document summarizer. Follow the output format exactly. Return only the requested format with no preamble or explanation."
+    ),
+    new HumanMessage(`Document${isPartial ? " section" : ""}:\n\n${text}\n\nTask: ${taskPrompt}`),
+  ]);
+  return (res.content as string).trim();
 };
 
 export const generateSummary = async (
@@ -93,103 +119,74 @@ export const generateSummary = async (
   outputType: OutputType
 ) => {
   const start  = Date.now();
-  const text   = rawText.slice(0, 48_000);
-  const suffix = PROMPTS[outputType];
+  const llm    = getSummaryLLM();
+  const prompt = PROMPTS[outputType];
 
-  // Mock mode when OpenAI is not available
-  if (!env.OPENAI_API_KEY) {
-    console.log("[MOCK] Using mock summary response");
-    const mockResponses: Record<OutputType, any> = {
-      tldr: "This document contains important information about the topic discussed.",
-      bullets: [
-        "Key point 1: Important information extracted from the document",
-        "Key point 2: Additional insights from the content",
-        "Key point 3: Main conclusions and findings",
-        "Key point 4: Recommendations and next steps",
-        "Key point 5: Summary of key metrics or data points"
-      ],
-      key_insights: [
-        "Strategic insight: The document reveals important patterns",
-        "Market insight: Competitive landscape analysis",
-        "Operational insight: Process improvements identified",
-        "Financial insight: Cost optimization opportunities",
-        "Risk insight: Potential challenges and mitigation strategies"
-      ],
-      action_points: [
-        "Implement recommended changes immediately",
-        "Schedule follow-up meetings with stakeholders",
-        "Conduct additional research on identified gaps",
-        "Update documentation and procedures",
-        "Monitor progress and adjust as needed"
-      ],
-      section_summary: [
-        { section: "Introduction", summary: "Overview of the main topic and objectives" },
-        { section: "Analysis", summary: "Detailed examination of data and findings" },
-        { section: "Conclusions", summary: "Key takeaways and recommendations" },
-        { section: "Recommendations", summary: "Specific actions and next steps" }
-      ]
-    };
+  let finalRaw: string;
 
-    const ms = Date.now() - start;
-    return {
-      content: mockResponses[outputType],
-      model: "mock-gpt-4o",
-      processingTimeMs: ms,
-      tokenUsage: {
-        prompt: 100,
-        completion: 50,
-        total: 150,
-      },
-    };
+  if (rawText.length <= CHAR_LIMIT) {
+    // Small doc: single call
+    finalRaw = await summarizeOneChunk(llm, rawText, prompt, false);
+  } else {
+    // Large doc: map-reduce
+    logger.info(`[AI] Large doc (${rawText.length} chars) — map-reduce summarization`);
+
+    // Split into chunks
+    const parts: string[] = [];
+    for (let i = 0; i < rawText.length; i += CHAR_LIMIT) {
+      parts.push(rawText.slice(i, i + CHAR_LIMIT));
+    }
+
+    // Map: summarize each chunk in parallel
+    const partials = await Promise.all(
+      parts.map((part) => summarizeOneChunk(llm, part, prompt, true))
+    );
+
+    // Reduce: combine and final pass
+    const combined = partials.join("\n\n---\n\n");
+    finalRaw = await summarizeOneChunk(llm, combined, prompt, false);
   }
 
-  const llm = getLLM();
-  const res = await llm.invoke([
-    new SystemMessage(
-      "You are an expert document summarizer. Follow the output format exactly."
-    ),
-    new HumanMessage(`Document:\n\n${text}\n\nTask: ${suffix}`),
-  ]);
+  const ms = Date.now() - start;
 
-  const raw = (res.content as string).trim();
-  const ms  = Date.now() - start;
-
+  // Parse content
   let content: unknown;
   if (outputType === "tldr") {
-    content = raw;
+    content = finalRaw;
   } else {
+    // Remove markdown code fences if present
+    const cleaned = finalRaw
+      .replace(/^```(?:json)?\s*/i, "")
+      .replace(/\s*```$/,          "")
+      .trim();
+
     try {
-      content = JSON.parse(raw.replace(/```json|```/g, "").trim());
+      content = JSON.parse(cleaned);
     } catch {
-      content = raw
+      // Fallback: split by newlines and clean bullets
+      const lines = cleaned
         .split("\n")
-        .filter(Boolean)
-        .map((l) => l.replace(/^[-•*]\s*/, ""));
+        .map((l) => l.replace(/^[-•*\d.)\]]+\s*/, "").trim())
+        .filter((l) => l.length > 0);
+      content = lines.length > 0 ? lines : [cleaned];
     }
   }
 
-  const meta = (
-    res as unknown as {
-      response_metadata?: {
-        token_usage?: {
-          prompt_tokens?: number;
-          completion_tokens?: number;
-          total_tokens?: number;
-        };
-      };
-    }
-  ).response_metadata?.token_usage;
+  // Safety: ensure non-empty
+  if (Array.isArray(content) && content.length === 0) {
+    content = ["The document was processed but no content could be extracted."];
+  }
 
-  logger.info(`[AI] ${outputType} summary in ${ms}ms`);
+  logger.info(`[AI] ${outputType} summary done in ${ms}ms`);
 
   return {
     content,
     model:            env.OPENAI_CHAT_MODEL,
     processingTimeMs: ms,
     tokenUsage: {
-      prompt:     meta?.prompt_tokens     ?? 0,
-      completion: meta?.completion_tokens ?? 0,
-      total:      meta?.total_tokens      ?? 0,
+      prompt:     0,
+      completion: 0,
+      total:      0,
     },
   };
 };

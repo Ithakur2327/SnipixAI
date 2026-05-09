@@ -5,9 +5,18 @@ import { env }                        from "../../config/env";
 
 const BATCH = 100;
 
+const isPineconeReady = (): boolean => {
+  try {
+    getPineconeIndex();
+    return true;
+  } catch {
+    return false;
+  }
+};
+
 export const upsertChunks = async (chunks: TextChunk[]): Promise<number> => {
-  // Mock mode when Pinecone is not available
-  if (!env.PINECONE_API_KEY) {
+  // Mock mode when Pinecone is not available or initialization failed
+  if (!env.PINECONE_API_KEY || !isPineconeReady()) {
     logger.info(`[MOCK] Mock upserting ${chunks.length} chunks...`);
     return chunks.length;
   }
@@ -37,8 +46,8 @@ export const similaritySearch = async (
   userId:      string,
   topK = 5
 ): Promise<RetrievedChunk[]> => {
-  // Mock mode when Pinecone is not available
-  if (!env.PINECONE_API_KEY) {
+  // Mock mode when Pinecone is not available or initialization failed
+  if (!env.PINECONE_API_KEY || !isPineconeReady()) {
     logger.info(`[MOCK] Mock similarity search returning ${topK} results...`);
     return Array.from({ length: topK }, (_, i) => ({
       chunkId: `mock-chunk-${i}`,
@@ -68,8 +77,8 @@ export const similaritySearch = async (
 export const deleteDocumentVectors = async (
   documentId: string
 ): Promise<void> => {
-  // Mock mode when Pinecone is not available
-  if (!env.PINECONE_API_KEY) {
+  // Mock mode when Pinecone is not available or initialization failed
+  if (!env.PINECONE_API_KEY || !isPineconeReady()) {
     logger.info(`[MOCK] Mock deleting vectors for doc: ${documentId}`);
     return;
   }

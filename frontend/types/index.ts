@@ -26,6 +26,7 @@ export interface Document {
   sourceType: SourceType;
   sourceUrl: string | null;
   status: DocumentStatus;
+  errorMessage?: string | null;
   wordCount: number;
   pageCount: number | null;
   createdAt: string;

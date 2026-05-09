@@ -5,6 +5,7 @@ import { summarizeDocument }           from "../services/rag/pipeline";
 import { ok }                          from "../utils/response";
 import { AppError }                    from "../middleware/errorHandler";
 import { AuthRequest, OutputType }     from "../types";
+import { env }                         from "../config/env";
 
 export const createSummary = async (req: AuthRequest, res: Response) => {
   const { documentId } = req.params;
@@ -30,7 +31,7 @@ export const createSummary = async (req: AuthRequest, res: Response) => {
     userId:           req.user!._id,
     outputType,
     content:          result.content,
-    modelName:        result.model,
+    modelName:        result.model || env.OPENAI_SUMMARIZE_MODEL,
     processingTimeMs: result.processingTimeMs,
     tokenUsage:       result.tokenUsage,
   });

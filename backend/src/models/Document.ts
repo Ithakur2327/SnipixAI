@@ -21,6 +21,7 @@ const DocumentSchema = new Schema<IDocument>(
       enum: ["pending","extracting","ready","failed"],
       default: "pending",
     },
+    errorMessage: { type: String, default: null },
     metadata: {
       originalName: { type: String, default: "" },
       mimeType:     { type: String, default: "" },

@@ -9,6 +9,18 @@ cloudinary.config({
   api_secret: env.CLOUDINARY_API_SECRET,
 });
 
+export const validateCloudinaryConfig = async (): Promise<void> => {
+  try {
+    // Test the config by listing resources (should not fail if credentials are valid)
+    await cloudinary.api.resources({ max_results: 1 });
+  } catch (err: any) {
+    if (err.http_code === 401) {
+      throw new Error("Invalid Cloudinary credentials. Please check CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET in your .env file.");
+    }
+    throw new Error(`Cloudinary configuration error: ${err.message}`);
+  }
+};
+
 const storage = new CloudinaryStorage({
   cloudinary,
   params: {

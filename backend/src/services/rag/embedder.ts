@@ -8,7 +8,7 @@ let _embedder: OpenAIEmbeddings | null = null;
 const getEmbedder = (): OpenAIEmbeddings => {
   if (!_embedder) {
     _embedder = new OpenAIEmbeddings({
-      model:      env.OPENAI_EMBEDDING_MODEL,
+      model:        env.OPENAI_EMBEDDING_MODEL,
       openAIApiKey: env.OPENAI_API_KEY,
     });
   }
@@ -16,30 +16,29 @@ const getEmbedder = (): OpenAIEmbeddings => {
 };
 
 export const embedChunks = async (chunks: TextChunk[]): Promise<TextChunk[]> => {
-  // Mock mode when OpenAI is not available
-  if (!env.OPENAI_API_KEY) {
-    logger.info(`[MOCK] Mock embedding ${chunks.length} chunks...`);
-    return chunks.map((chunk) => ({
-      ...chunk,
-      vector: Array.from({ length: env.PINECONE_DIMENSION }, () => Math.random())
-    }));
-  }
+  if (chunks.length === 0) return [];
 
   const embedder = getEmbedder();
   const texts    = chunks.map((c) => c.text);
 
-  logger.info(`Embedding ${texts.length} chunks...`);
-  const vectors = await embedder.embedDocuments(texts);
+  logger.info(`[Embedder] Embedding ${texts.length} chunks...`);
 
-  return chunks.map((chunk, i) => ({ ...chunk, vector: vectors[i] }));
+  // Batch in groups of 100 to avoid rate limits
+  const BATCH = 100;
+  const allVectors: number[][] = [];
+
+  for (let i = 0; i < texts.length; i += BATCH) {
+    const batch   = texts.slice(i, i + BATCH);
+    const vectors = await embedder.embedDocuments(batch);
+    allVectors.push(...vectors);
+    if (texts.length > BATCH) {
+      logger.info(`[Embedder] Batch ${Math.floor(i / BATCH) + 1} done`);
+    }
+  }
+
+  return chunks.map((chunk, i) => ({ ...chunk, vector: allVectors[i] }));
 };
 
 export const embedQuery = async (query: string): Promise<number[]> => {
-  // Mock mode when OpenAI is not available
-  if (!env.OPENAI_API_KEY) {
-    logger.info(`[MOCK] Mock embedding query...`);
-    return Array.from({ length: env.PINECONE_DIMENSION }, () => Math.random());
-  }
-
   return getEmbedder().embedQuery(query);
 };

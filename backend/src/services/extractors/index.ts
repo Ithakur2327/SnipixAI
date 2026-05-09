@@ -19,8 +19,19 @@ export const extractText = async (opts: {
   if (sourceType === "image")    return extractImage(sourceUrl!);
 
   // Download from Cloudinary
-  const { data } = await axios.get<ArrayBuffer>(sourceUrl!, { responseType: "arraybuffer" });
-  const buffer   = Buffer.from(data);
+  let buffer: Buffer;
+  try {
+    const { data } = await axios.get<ArrayBuffer>(sourceUrl!, { responseType: "arraybuffer" });
+    buffer = Buffer.from(data);
+  } catch (err: any) {
+    if (err.response?.status === 401) {
+      throw new Error("Cloudinary authentication failed. Please check your Cloudinary credentials in the .env file.");
+    }
+    if (err.response?.status === 404) {
+      throw new Error("Uploaded file not found in Cloudinary. The file may have been deleted or the upload failed.");
+    }
+    throw new Error(`Failed to download file from Cloudinary: ${err.message}`);
+  }
 
   switch (sourceType) {
     case "pdf":  return extractPDF(buffer);

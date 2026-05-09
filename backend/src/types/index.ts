@@ -37,6 +37,7 @@ export interface IDocument extends MongoDoc {
   wordCount: number;
   pageCount: number | null;
   status: "pending" | "extracting" | "ready" | "failed";
+  errorMessage?: string | null;
   summaryCount: number;
   metadata: {
     originalName: string;

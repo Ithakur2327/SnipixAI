@@ -2,39 +2,7 @@
 import { useState, useRef } from "react";
 import UploadPanel from "./UploadPanel";
 import ResultPanel from "./ResultPanel";
-import api, { documentAPI, summaryAPI } from "@/lib/api";
-import { useAppStore } from "@/store/useAppStore";
-
-// ✅ Demo results for non-logged-in users (per output type)
-const DEMO_RESULTS: Record<string, string[]> = {
-  bullets: [
-    "Revenue grew 23% YoY driven by enterprise segment expansion",
-    "Customer churn decreased significantly from 8% down to 5.2%",
-    "Three new product launches are scheduled for Q4 2024",
-    "APAC region showed 41% growth, becoming second largest market",
-    "Operating margin improved to 18.4% due to efficiency gains",
-    "New partnerships signed with 3 Fortune 500 companies",
-  ],
-  tldr: [
-    "The company had a strong quarter with 23% revenue growth, improved margins, and significant APAC expansion. Churn reduced from 8% to 5.2%.",
-  ],
-  key_insights: [
-    "Enterprise segment is the primary growth driver",
-    "APAC is becoming a strategically critical market",
-    "Operational efficiency improvements are sustainable",
-    "Customer retention improving across all segments",
-  ],
-  action_points: [
-    "Double down on APAC expansion strategy",
-    "Accelerate Q4 product launch timelines",
-    "Implement churn prevention playbook company-wide",
-  ],
-  section_summary: [
-    "Financial Performance: Strong 23% revenue growth with improving margins",
-    "Customer Metrics: Churn fell from 8% to 5.2%, signaling better retention",
-    "Geographic Expansion: APAC grew 41% and is now the second largest market",
-  ],
-};
+import { documentAPI, summaryAPI } from "@/lib/api";
 
 export default function HeroSection() {
   const [result, setResult] = useState<string[] | null>(null);
@@ -43,11 +11,7 @@ export default function HeroSection() {
   const [splitPercent, setSplitPercent] = useState(50);
   const [isDragging, setIsDragging] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-  const { isAuthenticated } = useAppStore();
-  const token = typeof window !== "undefined" ? localStorage.getItem("snipix_token") : null;
-  const authenticated = isAuthenticated || Boolean(token);
 
-  // ✅ FIXED: inputMode + file param added — UploadPanel se match karta hai
   const mapMimeToSourceType = (mime: string) => {
     switch (mime) {
       case "application/pdf": return "pdf";
@@ -70,19 +34,10 @@ export default function HeroSection() {
     setLoading(true);
     setResult(null);
 
-    // ── Not logged in → demo dikhao ──────────────────────
-    if (!authenticated) {
-      setTimeout(() => {
-        setLoading(false);
-        setResult(DEMO_RESULTS[type] || DEMO_RESULTS.bullets);
-      }, 1500);
-      return;
-    }
-
     try {
       let documentId: string;
 
-      // ── Step 1: Correct API call per input mode ───────────
+      // Step 1: Upload document
       if (inputMode === "file" && file) {
         const formData = new FormData();
         formData.append("file", file);
@@ -96,40 +51,61 @@ export default function HeroSection() {
         documentId = data.data.documentId;
 
       } else {
-        // text (default)
-        const { data } = await documentAPI.submitText(content, `Summary - ${new Date().toLocaleDateString()}`);
+        const { data } = await documentAPI.submitText(
+          content,
+          `Summary - ${new Date().toLocaleDateString()}`
+        );
         documentId = data.data.documentId;
       }
 
-      // ── Step 2: Poll karo jab tak ready na ho ─────────────
+      if (!documentId) throw new Error("Failed to create document");
+
+      // Step 2: Poll until ready (max 60 seconds)
       let status = "extracting";
       let attempts = 0;
+      let failureMessage: string | null = null;
       while (status !== "ready" && status !== "failed" && attempts < 30) {
         await new Promise((r) => setTimeout(r, 2000));
         const { data: statusData } = await documentAPI.status(documentId);
         status = statusData.data.status;
+        if (statusData.data.errorMessage) {
+          failureMessage = statusData.data.errorMessage;
+        }
         attempts++;
       }
 
       if (status === "failed") {
-        setResult(["Document processing failed. Please try again."]);
-        setLoading(false);
-        return;
+        throw new Error(
+          failureMessage
+            ? `Document processing failed: ${failureMessage}`
+            : "Document processing failed. Please try a different file or text."
+        );
+      }
+      if (attempts >= 30) {
+        throw new Error("Processing timed out. Please try again.");
       }
 
-      // ── Step 3: Summary generate karo ────────────────────
+      // Step 3: Generate summary
       const { data: summaryData } = await summaryAPI.create(documentId, type);
-
       const resultContent = summaryData.data.content;
+
       if (Array.isArray(resultContent)) {
-        setResult(resultContent);
+        // section_summary: [{section, summary}] → flatten to strings
+        const flat = resultContent.map((item: any) =>
+          typeof item === "string"
+            ? item
+            : `${item.section}: ${item.summary}`
+        );
+        setResult(flat);
       } else if (typeof resultContent === "string") {
         setResult([resultContent]);
       } else {
         setResult([JSON.stringify(resultContent)]);
       }
+
     } catch (err: any) {
-      setResult([err?.message || "Something went wrong. Please try again."]);
+      const msg = err?.message || err?.error?.message || "Something went wrong. Please try again.";
+      setResult([`Error: ${msg}`]);
     } finally {
       setLoading(false);
     }

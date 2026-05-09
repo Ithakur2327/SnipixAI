@@ -8,9 +8,9 @@ const required = (key: string): string => {
 };
 
 export const env = {
-  PORT:     Number(process.env.PORT) || 5000,
-  NODE_ENV: process.env.NODE_ENV    || "development",
-  CLIENT_URL: process.env.CLIENT_URL || "http://localhost:3000",
+  PORT:       Number(process.env.PORT) || 5000,
+  NODE_ENV:   process.env.NODE_ENV    || "development",
+  CLIENT_URL: process.env.CLIENT_URL  || "http://localhost:3000",
 
   MONGO_URI:      required("MONGO_URI"),
   JWT_SECRET:     required("JWT_SECRET"),
@@ -20,12 +20,14 @@ export const env = {
   CLOUDINARY_API_KEY:    required("CLOUDINARY_API_KEY"),
   CLOUDINARY_API_SECRET: required("CLOUDINARY_API_SECRET"),
 
-  OPENAI_API_KEY:         process.env.OPENAI_API_KEY, // Make optional for mock mode
+  // ✅ FIX: required() use karo — optional rakhne se silently fail hota tha
+  OPENAI_API_KEY:         required("OPENAI_API_KEY"),
   OPENAI_EMBEDDING_MODEL: process.env.OPENAI_EMBEDDING_MODEL || "text-embedding-3-small",
   OPENAI_CHAT_MODEL:      process.env.OPENAI_CHAT_MODEL      || "gpt-4o-mini",
   OPENAI_SUMMARIZE_MODEL: process.env.OPENAI_SUMMARIZE_MODEL || "gpt-4o-mini",
 
-  PINECONE_API_KEY:   process.env.PINECONE_API_KEY, // Make optional for mock mode
+  // ✅ FIX: required() use karo — optional rakhne se Pinecone init fail hoti thi
+  PINECONE_API_KEY:   required("PINECONE_API_KEY"),
   PINECONE_INDEX:     process.env.PINECONE_INDEX     || "snipixai",
   PINECONE_DIMENSION: Number(process.env.PINECONE_DIMENSION) || 1536,
 

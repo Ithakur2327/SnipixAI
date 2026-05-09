@@ -34,6 +34,13 @@ export default function DocumentPage({ params }: { params: { id: string } }) {
   const [polling, setPolling]       = useState(false);
   const [error, setError]           = useState("");
 
+  const formatSummaryItem = (item: any) => {
+    if (typeof item === "string") return item;
+    if (item?.section && item?.summary) return `${item.section}: ${item.summary}`;
+    if (item?.summary) return item.summary;
+    return JSON.stringify(item);
+  };
+
   // Load document
   useEffect(() => {
     documentAPI.get(params.id)
@@ -164,12 +171,14 @@ export default function DocumentPage({ params }: { params: { id: string } }) {
                     </div>
                   ) : summary ? (
                     <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-                      {(Array.isArray(summary.content) ? summary.content : [summary.content]).map((item: string, i: number) => (
+                      {(Array.isArray(summary.content) ? summary.content : [summary.content]).map((item: any, i: number) => (
                         <li key={i} style={{ display: "flex", gap: "12px", padding: "10px 0", borderBottom: i < (Array.isArray(summary.content) ? summary.content.length : 1) - 1 ? "1px solid rgba(255,255,255,0.05)" : "none", alignItems: "flex-start" }}>
                           <span style={{ width: "20px", height: "20px", borderRadius: "6px", background: "rgba(232,89,10,0.15)", color: "#E8590A", fontSize: "10px", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                             {i + 1}
                           </span>
-                          <span style={{ fontSize: "13px", color: "rgba(255,255,255,0.75)", lineHeight: 1.7 }}>{item}</span>
+                          <span style={{ fontSize: "13px", color: "rgba(255,255,255,0.75)", lineHeight: 1.7 }}>
+                            {formatSummaryItem(item)}
+                          </span>
                         </li>
                       ))}
                     </ul>

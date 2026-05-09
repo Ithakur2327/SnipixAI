@@ -60,6 +60,13 @@ export default function DocumentModal({
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, chatLoading]);
 
+  const formatSummaryItem = (item: any) => {
+    if (typeof item === "string") return item;
+    if (item?.section && item?.summary) return `${item.section}: ${item.summary}`;
+    if (item?.summary) return item.summary;
+    return JSON.stringify(item);
+  };
+
   const sendMessage = async () => {
     if (!input.trim() || chatLoading) return;
     const text = input.trim();
@@ -108,7 +115,7 @@ export default function DocumentModal({
     }
   };
 
-  const bullets = summary
+  const summaryItems = summary
     ? Array.isArray(summary.content)
       ? summary.content
       : [summary.content]
@@ -245,14 +252,14 @@ export default function DocumentModal({
                 )}
 
                 {/* Bullets */}
-                {!summaryLoading && !summaryError && bullets.length > 0 && (
+                {!summaryLoading && !summaryError && summaryItems.length > 0 && (
                   <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-                    {bullets.map((b: string, i: number) => (
-                      <li key={i} style={{ display: "flex", gap: "14px", padding: "12px 0", borderBottom: i < bullets.length - 1 ? "1px solid rgba(255,255,255,0.05)" : "none", alignItems: "flex-start" }}>
+                    {summaryItems.map((item: any, i: number) => (
+                      <li key={i} style={{ display: "flex", gap: "14px", padding: "12px 0", borderBottom: i < summaryItems.length - 1 ? "1px solid rgba(255,255,255,0.05)" : "none", alignItems: "flex-start" }}>
                         <span style={{ width: "22px", height: "22px", borderRadius: "6px", background: "rgba(232,89,10,0.12)", color: "#E8590A", fontSize: "10px", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: "1px", fontFamily: "var(--font-inter), sans-serif" }}>
                           {i + 1}
                         </span>
-                        <span style={{ fontSize: "14px", color: "rgba(255,255,255,0.75)", lineHeight: 1.75, fontFamily: "var(--font-inter), sans-serif" }}>{b}</span>
+                        <span style={{ fontSize: "14px", color: "rgba(255,255,255,0.75)", lineHeight: 1.75, fontFamily: "var(--font-inter), sans-serif" }}>{formatSummaryItem(item)}</span>
                       </li>
                     ))}
                   </ul>
