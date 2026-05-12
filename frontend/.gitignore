@@ -39,3 +39,17 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# python
+venv/
+__pycache__/
+*.pyc
+
+# python env
+.env
+
+# fastapi
+.pytest_cache/
+
+# mac/windows
+Thumbs.db
