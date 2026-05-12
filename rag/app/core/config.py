@@ -1,5 +1,9 @@
 from pydantic_settings import BaseSettings
 from functools import lru_cache
+import os
+
+# rag/ directory ka absolute path — config.py wahan se 2 level upar hai
+_RAG_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 
 
 class Settings(BaseSettings):
@@ -21,7 +25,8 @@ class Settings(BaseSettings):
     node_backend_url: str = "http://localhost:5000"
 
     class Config:
-        env_file = ".env"
+        # .env file rag/ root mein dhundo, services/ mein nahi
+        env_file = os.path.join(_RAG_ROOT, ".env")
         case_sensitive = False
 
 

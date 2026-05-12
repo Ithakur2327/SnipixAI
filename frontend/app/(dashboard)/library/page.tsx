@@ -1,20 +1,28 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { MOCK_DOCUMENTS } from "@/lib/mockData";
+import { documentAPI } from "@/lib/api";
 import type { Document as DocItem } from "@/types";
 import DocumentCard from "@/components/dashboard/DocumentCard";
 
 const FILTERS = ["All", "PDF", "DOCX", "URL", "PPT"];
 
-const docs = MOCK_DOCUMENTS as DocItem[];
-const totalDocs      = docs.length;
-const totalSummaries = docs.reduce((a, d) => a + (d.summaryCount ?? 0), 0);
-
 export default function LibraryPage() {
   const [filter, setFilter]   = useState("All");
   const [search, setSearch]   = useState("");
+  const [docs, setDocs]       = useState<DocItem[]>([]);
+  const [loading, setLoading] = useState(true);
   const router = useRouter();
+
+  useEffect(() => {
+    documentAPI.list(1, 100)
+      .then((res) => setDocs(res.data.data ?? []))
+      .catch(() => setDocs([]))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const totalDocs      = docs.length;
+  const totalSummaries = docs.reduce((a, d) => a + (d.summaryCount ?? 0), 0);
 
   const filtered = docs.filter((d) => {
     const matchType =
@@ -134,6 +142,17 @@ export default function LibraryPage() {
         .lib-card-grid > *:nth-child(4) { animation-delay: 0.18s; }
         .lib-card-grid > *:nth-child(5) { animation-delay: 0.22s; }
         .lib-card-grid > *:nth-child(6) { animation-delay: 0.26s; }
+
+        /* ── skeleton shimmer ── */
+        @keyframes shimmer {
+          0%, 100% { opacity: 0.3; }
+          50%       { opacity: 0.7; }
+        }
+        .lib-skeleton {
+          background: rgba(255,255,255,0.06);
+          border-radius: 12px;
+          animation: shimmer 1.5s ease-in-out infinite;
+        }
       `}</style>
 
       <div style={{ maxWidth: "1160px", margin: "0 auto", padding: "40px 24px 60px" }}>
@@ -219,7 +238,7 @@ export default function LibraryPage() {
               letterSpacing: "1px",
               marginBottom: "8px",
             }}>
-              {totalDocs}
+              {loading ? "—" : totalDocs}
             </div>
             <div style={{
               fontFamily: "var(--font-inter), sans-serif",
@@ -267,7 +286,7 @@ export default function LibraryPage() {
               letterSpacing: "1px",
               marginBottom: "8px",
             }}>
-              {totalSummaries}
+              {loading ? "—" : totalSummaries}
             </div>
             <div style={{
               fontFamily: "var(--font-inter), sans-serif",
@@ -285,7 +304,7 @@ export default function LibraryPage() {
           {/* Card 3 — New Summary CTA */}
           <div
             className="lib-cta-card"
-            onClick={() => router.push("/#summarizer")}
+            onClick={() => router.push("/upload")}
           >
             <div>
               <div style={{
@@ -418,7 +437,7 @@ export default function LibraryPage() {
               fontSize: "11px",
               color: "rgba(255,255,255,0.2)",
             }}>
-              {filtered.length} {filtered.length === 1 ? "result" : "results"}
+              {loading ? "Loading…" : `${filtered.length} ${filtered.length === 1 ? "result" : "results"}`}
             </span>
           </div>
 
@@ -432,7 +451,12 @@ export default function LibraryPage() {
               gap: "12px",
             }}
           >
-            {filtered.length > 0 ? (
+            {loading ? (
+              // Skeleton loading state
+              [1, 2, 3].map((i) => (
+                <div key={i} className="lib-skeleton" style={{ height: "160px" }} />
+              ))
+            ) : filtered.length > 0 ? (
               filtered.map((doc) => (
                 <DocumentCard key={doc._id} doc={doc} />
               ))

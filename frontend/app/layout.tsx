@@ -22,6 +22,7 @@ export default function RootLayout({
         }}
       >
         <div className="snx-page-wrap">
+          {children}
           
         </div>
       </body>
