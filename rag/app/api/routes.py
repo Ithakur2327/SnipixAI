@@ -38,7 +38,7 @@ async def health_check():
         status="ok",
         pinecone=pinecone_status,
         mongodb=mongo_status,
-        openai="configured",
+        openai="anthropic",   # renamed display only
     )
 
 
@@ -58,6 +58,7 @@ async def process_doc(req: ProcessDocumentRequest, background_tasks: BackgroundT
         status="processing",
         message="Document processing started",
     )
+
 
 # ── Process document synchronously (for small docs) ─────────
 @router.post("/process/sync", response_model=ProcessResponse)

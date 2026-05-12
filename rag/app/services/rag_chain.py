@@ -1,15 +1,15 @@
 import logging
 import time
-from typing import List, Any
-from openai import OpenAI
-from tenacity import retry, stop_after_attempt, wait_exponential
+import json
+from typing import List
+from groq import Groq
 from app.core.config import get_settings
 from app.models.schemas import OutputType
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
-_client: OpenAI = None
+_client: Groq = None
 
 SUMMARY_PROMPTS = {
     OutputType.tldr: (
@@ -36,31 +36,30 @@ SUMMARY_PROMPTS = {
 }
 
 
-def _get_client() -> OpenAI:
+def _get_client() -> Groq:
     global _client
     if _client is None:
-        _client = OpenAI(api_key=settings.openai_api_key)
+        _client = Groq(api_key=settings.groq_api_key)
     return _client
 
 
-@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
 def generate_rag_answer(
     question: str,
     chunks: List[dict],
     chat_history: List[dict] = None,
 ) -> dict:
-    """Generate answer from retrieved chunks."""
+    """Generate answer from retrieved chunks using Groq (Llama)."""
     start = time.time()
     client = _get_client()
     chat_history = chat_history or []
 
-    # Build context
+    # Build context from chunks
     context = "\n\n---\n\n".join(
         f"[Chunk {i+1} | Score: {c['score']}]\n{c['text']}"
         for i, c in enumerate(chunks)
     )
 
-    # Build history string
+    # Build conversation history string
     history_str = ""
     if chat_history:
         history_lines = [
@@ -84,7 +83,7 @@ def generate_rag_answer(
     )
 
     response = client.chat.completions.create(
-        model=settings.openai_chat_model,
+        model=settings.groq_chat_model,
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user",   "content": user_prompt},
@@ -95,8 +94,8 @@ def generate_rag_answer(
 
     answer = response.choices[0].message.content.strip()
     ms = int((time.time() - start) * 1000)
-
     usage = response.usage
+
     sources = [
         {
             "chunk_id":   c["chunk_id"],
@@ -110,7 +109,7 @@ def generate_rag_answer(
 
     return {
         "answer":        answer,
-        "model":         settings.openai_chat_model,
+        "model":         settings.groq_chat_model,
         "processing_ms": ms,
         "sources":       sources,
         "token_usage": {
@@ -121,19 +120,17 @@ def generate_rag_answer(
     }
 
 
-@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
 def generate_summary(raw_text: str, output_type: OutputType) -> dict:
-    """Generate summary of document."""
-    import json
+    """Generate summary of document using Groq (Llama)."""
     start = time.time()
     client = _get_client()
 
-    # Truncate to ~12k tokens (48k chars)
+    # Truncate to ~12k tokens (48k chars) to stay within context limit
     text = raw_text[:48_000]
     task_prompt = SUMMARY_PROMPTS[output_type]
 
     response = client.chat.completions.create(
-        model=settings.openai_chat_model,
+        model=settings.groq_chat_model,
         messages=[
             {
                 "role": "system",
@@ -152,12 +149,11 @@ def generate_summary(raw_text: str, output_type: OutputType) -> dict:
     ms = int((time.time() - start) * 1000)
     usage = response.usage
 
-    # Parse content
+    # Parse content based on output type
     if output_type == OutputType.tldr:
         content = raw
     else:
         try:
-            # Strip markdown code blocks if present
             cleaned = raw.replace("```json", "").replace("```", "").strip()
             content = json.loads(cleaned)
         except json.JSONDecodeError:
@@ -172,7 +168,7 @@ def generate_summary(raw_text: str, output_type: OutputType) -> dict:
 
     return {
         "content":            content,
-        "model":              settings.openai_chat_model,
+        "model":              settings.groq_chat_model,
         "processing_time_ms": ms,
         "token_usage": {
             "prompt":     usage.prompt_tokens if usage else 0,
