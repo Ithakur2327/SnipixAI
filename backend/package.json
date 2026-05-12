@@ -1,7 +1,7 @@
 {
   "name": "snipixai-backend",
   "version": "1.0.0",
-  "description": "SnipixAI – RAG-Based AI Content Summarizer Backend",
+  "description": "SnipixAI Backend",
   "main": "dist/server.js",
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only --project tsconfig.json ./src/server.ts",
@@ -10,50 +10,38 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "express": "^4.19.2",
-    "mongoose": "^8.4.1",
-    "dotenv": "^16.4.5",
+    "axios": "^1.7.2",
     "bcryptjs": "^2.4.3",
-    "jsonwebtoken": "^9.0.2",
+    "cloudinary": "^2.3.1",
+    "compression": "^1.7.4",
     "cors": "^2.8.5",
-    "helmet": "^7.1.0",
-    "morgan": "^1.10.0",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
     "express-rate-limit": "^7.3.1",
     "express-validator": "^7.1.0",
+    "helmet": "^7.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.4.1",
+    "morgan": "^1.10.0",
     "multer": "^1.4.5-lts.1",
     "multer-storage-cloudinary": "^4.0.0",
-    "cloudinary": "^2.3.1",
-    "axios": "^1.7.2",
-    "pdf-parse": "^1.1.1",
-    "mammoth": "^1.8.0",
-    "tesseract.js": "^5.1.0",
-    "puppeteer": "^22.11.2",
-    "openai": "^4.52.1",
-    "@langchain/openai": "^0.2.1",
-    "@langchain/core": "^0.2.10",
-    "@langchain/pinecone": "^0.1.0",
-    "langchain": "^0.2.9",
-    "@pinecone-database/pinecone": "^3.0.1",
-    "winston": "^3.13.0",
-    "compression": "^1.7.4",
-    "sanitize-html": "^2.13.0",
     "uuid": "^10.0.0",
-    "tiktoken": "^1.0.15"
+    "winston": "^3.13.0"
   },
   "devDependencies": {
-    "@types/express": "^4.17.21",
     "@types/bcryptjs": "^2.4.6",
-    "@types/jsonwebtoken": "^9.0.6",
+    "@types/compression": "^1.7.5",
     "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/jsonwebtoken": "^9.0.6",
     "@types/morgan": "^1.9.9",
     "@types/multer": "^1.4.11",
-    "@types/compression": "^1.7.5",
-    "@types/sanitize-html": "^2.13.0",
-    "@types/uuid": "^10.0.0",
-    "@types/pdf-parse": "^1.1.4",
     "@types/node": "^20.14.9",
-    "typescript": "^5.5.2",
-    "ts-node-dev": "^2.0.0"
+    "@types/uuid": "^10.0.0",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.5.2"
   },
-  "engines": { "node": ">=18.0.0" }
+  "engines": {
+    "node": ">=18.0.0"
+  }
 }

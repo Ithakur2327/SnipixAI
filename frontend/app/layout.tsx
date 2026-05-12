@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import PageTransition from "@/components/shared/PageTransition";
 
 export const metadata: Metadata = {
   title: "SnipixAI — RAG-Based AI Content Summarizer",
@@ -23,7 +22,7 @@ export default function RootLayout({
         }}
       >
         <div className="snx-page-wrap">
-          <PageTransition>{children}</PageTransition>
+          
         </div>
       </body>
     </html>
