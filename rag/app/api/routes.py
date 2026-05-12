@@ -45,25 +45,19 @@ async def health_check():
 # ── Process document ────────────────────────────────────────
 @router.post("/process", response_model=ProcessResponse)
 async def process_doc(req: ProcessDocumentRequest, background_tasks: BackgroundTasks):
-    """
-    Start document processing in background.
-    Returns immediately with status=processing.
-    """
     background_tasks.add_task(
         process_document,
         document_id=req.document_id,
         user_id=req.user_id,
-        source_type=req.source_type,
+        source_type=req.source_type.value,
         source_url=req.source_url,
         raw_text=req.raw_text,
     )
-
     return ProcessResponse(
         document_id=req.document_id,
         status="processing",
         message="Document processing started",
     )
-
 
 # ── Process document synchronously (for small docs) ─────────
 @router.post("/process/sync", response_model=ProcessResponse)
