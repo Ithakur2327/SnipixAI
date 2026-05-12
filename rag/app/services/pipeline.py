@@ -6,45 +6,54 @@ from app.services.chunker import chunk_text
 from app.services.embedder import embed_texts, embed_query
 from app.services.vector_store import upsert_chunks, similarity_search, delete_document_vectors
 from app.services.rag_chain import generate_rag_answer, generate_summary
-from app.models.schemas import OutputType, SourceType
+from app.models.schemas import OutputType
 
 logger = logging.getLogger(__name__)
 
 
 async def process_document(
     document_id: str,
-    user_id: str,
+    user_id:     str,
     source_type: str,
-    source_url: Optional[str] = None,
-    raw_text: Optional[str] = None,
+    source_url:  Optional[str] = None,
+    raw_text:    Optional[str] = None,
 ) -> dict:
     """
-    Full pipeline:
+    Full RAG pipeline:
     Extract → Chunk → Embed → Upsert Pinecone → Save chunks to MongoDB
     """
     db = get_async_db()
 
     try:
-        # Update status: extracting
+        # Mark as extracting
         await db.documents.update_one(
             {"_id": to_object_id(document_id)},
             {"$set": {"status": "extracting"}},
         )
 
-        # 1. Extract text
-        logger.info(f"[pipeline] Extracting text for {document_id} ({source_type})")
+        # ── 1. Extract text ──────────────────────────────────────
+        logger.info(f"[pipeline] Extracting: {document_id} ({source_type})")
+
+        # ✅ FIX: empty string se bhi None treat karo
+        clean_raw = raw_text.strip() if raw_text and raw_text.strip() else None
+        clean_url = source_url.strip() if source_url and source_url.strip() else None
+
         text, page_count = extract_text(
             source_type=source_type,
-            source_url=source_url,
-            raw_text=raw_text,
+            source_url=clean_url,
+            raw_text=clean_raw,
         )
 
         if not text or not text.strip():
-            raise ValueError("No text could be extracted from the document")
+            raise ValueError(
+                f"No text could be extracted from the document (type={source_type}). "
+                "Check that the file is not empty, password-protected, or image-only."
+            )
 
         word_count = len(text.split())
+        logger.info(f"[pipeline] Extracted {word_count} words, {page_count or 'N/A'} pages")
 
-        # 2. Save raw text to MongoDB
+        # ── 2. Save raw text to MongoDB ──────────────────────────
         await db.documents.update_one(
             {"_id": to_object_id(document_id)},
             {"$set": {
@@ -54,46 +63,43 @@ async def process_document(
             }},
         )
 
-        # 3. Chunk text
-        logger.info(f"[pipeline] Chunking {word_count} words")
+        # ── 3. Chunk ─────────────────────────────────────────────
         chunks = chunk_text(text, document_id, user_id)
+        logger.info(f"[pipeline] Created {len(chunks)} chunks")
 
-        # 4. Embed chunks
-        logger.info(f"[pipeline] Embedding {len(chunks)} chunks")
-        texts = [c["text"] for c in chunks]
+        # ── 4. Embed ─────────────────────────────────────────────
+        texts   = [c["text"] for c in chunks]
         vectors = embed_texts(texts)
-
         for i, chunk in enumerate(chunks):
             chunk["vector"] = vectors[i]
 
-        # 5. Save chunks to MongoDB
+        # ── 5. Save chunks to MongoDB ─────────────────────────────
         chunk_docs = [
             {
-                "documentId":    to_object_id(document_id),
-                "userId":        to_object_id(user_id),
-                "chunkIndex":    c["index"],
-                "text":          c["text"],
-                "tokenCount":    c["token_count"],
-                "vectorId":      c["chunk_id"],
+                "documentId":     to_object_id(document_id),
+                "userId":         to_object_id(user_id),
+                "chunkIndex":     c["index"],
+                "text":           c["text"],
+                "tokenCount":     c["token_count"],
+                "vectorId":       c["chunk_id"],
                 "embeddingModel": "text-embedding-3-small",
             }
             for c in chunks
         ]
-
         if chunk_docs:
             await db.chunks.insert_many(chunk_docs)
 
-        # 6. Upsert to Pinecone
+        # ── 6. Upsert to Pinecone ─────────────────────────────────
         upserted = upsert_chunks(chunks)
         logger.info(f"[pipeline] Upserted {upserted} vectors to Pinecone")
 
-        # 7. Mark document as ready
+        # ── 7. Mark ready ─────────────────────────────────────────
         await db.documents.update_one(
             {"_id": to_object_id(document_id)},
             {"$set": {"status": "ready"}},
         )
 
-        logger.info(f"[pipeline] ✅ Document {document_id} processed successfully")
+        logger.info(f"[pipeline] ✅ Done: {document_id}")
         return {
             "document_id":    document_id,
             "status":         "ready",
@@ -102,27 +108,30 @@ async def process_document(
         }
 
     except Exception as e:
-        logger.error(f"[pipeline] ❌ Error processing {document_id}: {e}")
-        await db.documents.update_one(
-            {"_id": to_object_id(document_id)},
-            {"$set": {"status": "failed"}},
-        )
+        logger.error(f"[pipeline] ❌ Error: {document_id} — {e}")
+        try:
+            await db.documents.update_one(
+                {"_id": to_object_id(document_id)},
+                {"$set": {
+                    "status":       "failed",
+                    "errorMessage": str(e),
+                }},
+            )
+        except Exception:
+            pass
         raise
 
 
 async def query_document(
-    document_id: str,
-    user_id: str,
-    question: str,
+    document_id:  str,
+    user_id:      str,
+    question:     str,
     chat_history: list = None,
-    top_k: int = 5,
+    top_k:        int  = 5,
 ) -> dict:
     """RAG query pipeline."""
-    # 1. Embed question
     query_vector = embed_query(question)
-
-    # 2. Search Pinecone
-    chunks = similarity_search(query_vector, document_id, user_id, top_k)
+    chunks       = similarity_search(query_vector, document_id, user_id, top_k)
 
     if not chunks:
         return {
@@ -132,19 +141,25 @@ async def query_document(
             "sources":       [],
         }
 
-    # 3. Generate answer
-    result = generate_rag_answer(question, chunks, chat_history or [])
-    return result
+    return generate_rag_answer(question, chunks, chat_history or [])
 
 
 async def summarize_document(
     document_id: str,
-    raw_text: str,
+    raw_text:    str,
     output_type: str,
 ) -> dict:
-    """Summarize document."""
-    result = generate_summary(raw_text, OutputType(output_type))
-    return result
+    """Summarize document using OpenAI."""
+    if not raw_text or not raw_text.strip():
+        # Fallback: load rawText from MongoDB
+        db = get_async_db()
+        doc = await db.documents.find_one({"_id": to_object_id(document_id)})
+        if doc and doc.get("rawText"):
+            raw_text = doc["rawText"]
+        else:
+            raise ValueError("Document has no extracted text to summarize")
+
+    return generate_summary(raw_text, OutputType(output_type))
 
 
 async def delete_document_data(document_id: str) -> None:

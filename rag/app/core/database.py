@@ -8,23 +8,38 @@ import logging
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
-# Async client for FastAPI
 _async_client: Optional[AsyncIOMotorClient] = None
-_sync_client: Optional[MongoClient] = None
+_sync_client:  Optional[MongoClient]        = None
+
+DB_NAME = "snipixai"
+
+
+def _parse_db_name(uri: str) -> str:
+    """Extract database name from URI, fallback to DB_NAME."""
+    try:
+        # mongodb://host:port/dbname  OR  mongodb+srv://...host/dbname
+        path = uri.split("/")[-1].split("?")[0].strip()
+        return path if path else DB_NAME
+    except Exception:
+        return DB_NAME
 
 
 def get_async_db():
     global _async_client
     if _async_client is None:
         _async_client = AsyncIOMotorClient(settings.mongo_uri)
-    return _async_client.get_default_database() or _async_client["snipixai"]
+    # ✅ FIX: 'or' operator on Database object causes TypeError
+    # Always use explicit database name — never rely on bool(db)
+    db_name = _parse_db_name(settings.mongo_uri)
+    return _async_client[db_name]
 
 
 def get_sync_db():
     global _sync_client
     if _sync_client is None:
         _sync_client = MongoClient(settings.mongo_uri)
-    return _sync_client.get_default_database() or _sync_client["snipixai"]
+    db_name = _parse_db_name(settings.mongo_uri)
+    return _sync_client[db_name]
 
 
 def to_object_id(id_str: str) -> ObjectId:
