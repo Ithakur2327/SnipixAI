@@ -46,6 +46,11 @@ app.use(errorHandler);
 const start = async () => {
   try {
     await connectDB();
+
+    const { validateCloudinaryConfig } = await import("./config/cloudinary");
+    await validateCloudinaryConfig();
+    logger.info("✅ Cloudinary config validated");
+
     app.listen(PORT, () => {
       logger.info(`🚀 SnipixAI backend running on http://localhost:${PORT}`);
       logger.info(`📦 Environment: ${process.env.NODE_ENV || "development"}`);

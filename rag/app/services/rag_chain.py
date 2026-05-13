@@ -53,13 +53,11 @@ def generate_rag_answer(
     client = _get_client()
     chat_history = chat_history or []
 
-    # Build context from chunks
     context = "\n\n---\n\n".join(
         f"[Chunk {i+1} | Score: {c['score']}]\n{c['text']}"
         for i, c in enumerate(chunks)
     )
 
-    # Build conversation history string
     history_str = ""
     if chat_history:
         history_lines = [
@@ -125,8 +123,17 @@ def generate_summary(raw_text: str, output_type: OutputType) -> dict:
     start = time.time()
     client = _get_client()
 
-    # Truncate to ~12k tokens (48k chars) to stay within context limit
-    text = raw_text[:48_000]
+    # ✅ FIX: Groq free tier TPM limit 12000 hai
+    # 1 token ≈ 4 chars, system+task prompt ≈ 200 tokens
+    # Safe limit: ~9000 tokens content = ~36000 chars
+    MAX_CHARS = 36_000
+    text = raw_text[:MAX_CHARS]
+    if len(raw_text) > MAX_CHARS:
+        logger.warning(
+            f"[rag_chain] Text truncated from {len(raw_text)} to {MAX_CHARS} chars "
+            f"to stay within Groq TPM limit"
+        )
+
     task_prompt = SUMMARY_PROMPTS[output_type]
 
     response = client.chat.completions.create(
@@ -142,14 +149,13 @@ def generate_summary(raw_text: str, output_type: OutputType) -> dict:
             },
         ],
         temperature=0.1,
-        max_tokens=2000,
+        max_tokens=1000,  # ✅ FIX: 2000 → 1000, output tokens bhi TPM mein count hote hain
     )
 
     raw = response.choices[0].message.content.strip()
     ms = int((time.time() - start) * 1000)
     usage = response.usage
 
-    # Parse content based on output type
     if output_type == OutputType.tldr:
         content = raw
     else:
@@ -157,7 +163,6 @@ def generate_summary(raw_text: str, output_type: OutputType) -> dict:
             cleaned = raw.replace("```json", "").replace("```", "").strip()
             content = json.loads(cleaned)
         except json.JSONDecodeError:
-            # Fallback: split by newlines
             content = [
                 line.lstrip("-•* ").strip()
                 for line in raw.splitlines()

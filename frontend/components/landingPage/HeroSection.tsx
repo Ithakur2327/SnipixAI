@@ -61,29 +61,31 @@ export default function HeroSection() {
       if (!documentId) throw new Error("Failed to create document");
 
       // Step 2: Poll until ready (max 60 seconds)
-      let status = "extracting";
-      let attempts = 0;
-      let failureMessage: string | null = null;
-      while (status !== "ready" && status !== "failed" && attempts < 30) {
-        await new Promise((r) => setTimeout(r, 2000));
-        const { data: statusData } = await documentAPI.status(documentId);
-        status = statusData.data.status;
-        if (statusData.data.errorMessage) {
-          failureMessage = statusData.data.errorMessage;
-        }
-        attempts++;
-      }
+    let status = "extracting";
+    let attempts = 0;
+    let failureMessage: string | null = null;
 
-      if (status === "failed") {
-        throw new Error(
-          failureMessage
-            ? `Document processing failed: ${failureMessage}`
-            : "Document processing failed. Please try a different file or text."
-        );
-      }
-      if (attempts >= 30) {
-        throw new Error("Processing timed out. Please try again.");
-      }
+
+while (status !== "ready" && status !== "failed" && attempts < 90) {
+  await new Promise((r) => setTimeout(r, 2000));
+  const { data: statusData } = await documentAPI.status(documentId);
+  status = statusData.data.status;
+  if (statusData.data.errorMessage) {
+    failureMessage = statusData.data.errorMessage;
+  }
+  attempts++;
+}
+
+if (status === "failed") {
+  throw new Error(
+    failureMessage
+      ? `Document processing failed: ${failureMessage}`
+      : "Document processing failed. Please try a different file or text."
+  );
+}
+if (attempts >= 90) {
+  throw new Error("Processing timed out. Please try again.");
+}
 
       // Step 3: Generate summary
       const { data: summaryData } = await summaryAPI.create(documentId, type);

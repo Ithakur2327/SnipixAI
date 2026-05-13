@@ -25,16 +25,18 @@ async def process_document(
     db = get_async_db()
 
     try:
-        # Mark as extracting
-        await db.documents.update_one(
-            {"_id": to_object_id(document_id)},
-            {"$set": {"status": "extracting"}},
-        )
+        # raw_text ke liye status "extracting" mat set karo —
+        # text pehle se available hai, Node backend ne "ready" set kiya hua hai.
+        # Sirf file/url/image types ke liye extracting status set karo.
+        if source_type != "raw_text":
+            await db.documents.update_one(
+                {"_id": to_object_id(document_id)},
+                {"$set": {"status": "extracting"}},
+            )
 
         # ── 1. Extract text ──────────────────────────────────────
         logger.info(f"[pipeline] Extracting: {document_id} ({source_type})")
 
-        # ✅ FIX: empty string se bhi None treat karo
         clean_raw = raw_text.strip() if raw_text and raw_text.strip() else None
         clean_url = source_url.strip() if source_url and source_url.strip() else None
 
@@ -149,9 +151,8 @@ async def summarize_document(
     raw_text:    str,
     output_type: str,
 ) -> dict:
-    """Summarize document using OpenAI."""
+    """Summarize document using Groq."""
     if not raw_text or not raw_text.strip():
-        # Fallback: load rawText from MongoDB
         db = get_async_db()
         doc = await db.documents.find_one({"_id": to_object_id(document_id)})
         if doc and doc.get("rawText"):

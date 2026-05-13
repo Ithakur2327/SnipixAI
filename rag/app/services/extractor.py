@@ -30,19 +30,30 @@ def extract_text(
             raise ValueError("source_url required for file types")
 
         response = requests.get(source_url, timeout=30)
-        
-        # Enhanced error handling for Cloudinary issues
+
         if response.status_code == 401:
-            logger.error(
-                f"[extractor] Cloudinary 401 Unauthorized. File may not be publicly accessible. "
-                f"URL: {source_url}. Consider enabling public file delivery in Cloudinary account settings."
+            raise ValueError(
+                "File could not be accessed (401 Unauthorized). "
+                "In Cloudinary Dashboard → Settings → Security, ensure "
+                "'Strict delivery mode' is disabled, or make the file publicly accessible. "
+                f"URL attempted: {source_url}"
+            )
+        elif response.status_code == 403:
+            raise ValueError(
+                "File access forbidden (403). The Cloudinary file may have restricted "
+                "delivery settings. Check your Cloudinary account's access control settings."
+            )
+        elif response.status_code == 404:
+            raise ValueError(
+                f"File not found (404). The file may have been deleted from Cloudinary. "
+                f"URL: {source_url}"
             )
         elif response.status_code == 500:
-            logger.error(
-                f"[extractor] Cloudinary 500 Server Error. This may indicate account restrictions "
+            raise ValueError(
+                "Cloudinary server error (500). This may indicate account restrictions "
                 f"or misconfiguration. URL: {source_url}"
             )
-        
+
         response.raise_for_status()
         buffer = BytesIO(response.content)
 
@@ -95,38 +106,96 @@ def _extract_pptx(buffer: BytesIO) -> str:
 
 def _extract_url(url: str) -> str:
     from bs4 import BeautifulSoup
+    import re
+
+    # ✅ FIX: Pehle check karo reddit hai ya nahi, phir properly replace karo
+    # Bug tha: "reddit.com" replace hone se "old.old.reddit.com" ban raha tha
+    is_reddit = "reddit.com" in url
+    if is_reddit:
+        # www.reddit.com → old.reddit.com, ya reddit.com → old.reddit.com
+        # re.sub use karo taake sirf ek baar replace ho
+        fetch_url = re.sub(r'(https?://)(?:www\.)?reddit\.com', r'\1old.reddit.com', url)
+    else:
+        fetch_url = url
+
     headers = {
         "User-Agent": (
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36"
-        )
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/120.0.0.0 Safari/537.36"
+        ),
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.5",
     }
-    response = requests.get(url, headers=headers, timeout=30)
+
+    response = requests.get(fetch_url, headers=headers, timeout=30)
     response.raise_for_status()
+
     soup = BeautifulSoup(response.text, "html.parser")
 
-    # Remove script/style
-    for tag in soup(["script", "style", "nav", "footer", "header"]):
+    for tag in soup(["script", "style", "nav", "footer", "header",
+                     "aside", "form", "noscript", "iframe"]):
         tag.decompose()
 
-    # Get main content
-    main = soup.find("main") or soup.find("article") or soup.find("body")
-    text = main.get_text(separator="\n") if main else soup.get_text(separator="\n")
+    if is_reddit:
+        content_el = (
+            soup.find("div", class_="thing")
+            or soup.find("div", class_="entry")
+            or soup.find("div", id="siteTable")
+            or soup.find("div", class_="commentarea")
+        )
+    else:
+        content_el = (
+            soup.find("article")
+            or soup.find("main")
+            or soup.find(id="content")
+            or soup.find(class_=lambda c: c and any(
+                x in c for x in ["content", "article", "post", "entry"]
+            ))
+            or soup.find("body")
+        )
 
-    # Clean up
+    text = content_el.get_text(separator="\n") if content_el else soup.get_text(separator="\n")
+
     lines = [line.strip() for line in text.splitlines()]
-    lines = [line for line in lines if len(line) > 30]
-    return "\n\n".join(lines[:300])  # Max 300 lines
+    lines = [line for line in lines if len(line) > 20]
+    result = "\n\n".join(lines[:500])
 
+    if not result.strip():
+        body = soup.find("body")
+        if body:
+            all_lines = [l.strip() for l in body.get_text(separator="\n").splitlines()]
+            all_lines = [l for l in all_lines if len(l) > 15]
+            result = "\n\n".join(all_lines[:500])
+
+    if not result.strip():
+        raise ValueError(
+            f"No readable text could be extracted from URL: {url}. "
+            "The page may be JavaScript-rendered, paywalled, or require login. "
+            "Try copying the text manually and using the 'Text' input instead."
+        )
+
+    return result
 
 def _extract_image(url: str) -> str:
     try:
         import pytesseract
         from PIL import Image
-        response = requests.get(url, timeout=30)
-        response.raise_for_status()
-        img = Image.open(BytesIO(response.content))
-        return pytesseract.image_to_string(img)
     except ImportError:
-        logger.warning("pytesseract not available, returning empty string")
-        return ""
+        raise ValueError(
+            "Image text extraction requires pytesseract and Pillow. "
+            "Install with: pip install pytesseract pillow\n"
+            "Also install Tesseract OCR: https://github.com/tesseract-ocr/tesseract"
+        )
+
+    response = requests.get(url, timeout=30)
+    response.raise_for_status()
+    img = Image.open(BytesIO(response.content))
+    text = pytesseract.image_to_string(img).strip()
+
+    if not text:
+        raise ValueError(
+            "No text could be extracted from the image. "
+            "The image may not contain readable text, or the text may be too small/blurry."
+        )
+    return text

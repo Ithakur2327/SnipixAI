@@ -10,26 +10,29 @@ cloudinary.config({
 });
 
 export const validateCloudinaryConfig = async (): Promise<void> => {
-  try {
-    // Test the config by listing resources (should not fail if credentials are valid)
-    await cloudinary.api.resources({ max_results: 1 });
-  } catch (err: any) {
-    if (err.http_code === 401) {
-      throw new Error("Invalid Cloudinary credentials. Please check CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET in your .env file.");
-    }
-    throw new Error(`Cloudinary configuration error: ${err.message}`);
+  if (!env.CLOUDINARY_CLOUD_NAME || !env.CLOUDINARY_API_KEY || !env.CLOUDINARY_API_SECRET) {
+    throw new Error(
+      "Missing Cloudinary credentials. Check CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET in .env"
+    );
   }
 };
 
 const storage = new CloudinaryStorage({
   cloudinary,
-  params: {
-    folder:          "snipixai",
-    resource_type:   "auto",
-    type:            "upload",    // Public upload (not private)
-    allowed_formats: ["pdf", "docx", "pptx", "txt", "png", "jpg", "jpeg"],
-  } as any,
-});
+  params: async (_req: any, file: any) => {
+    const isImage = ["image/png", "image/jpeg", "image/jpg"].includes(file.mimetype);
+    return {
+      folder:        "snipixai",
+      resource_type: isImage ? "image" : "raw",
+      type:          "upload",
+      access_mode:   "public",
+      // ✅ FIX: allowed_formats raw type ke saath kaam nahi karta —
+      // Cloudinary "raw" resources ke liye format restriction ignore hoti hai
+      // lekin kabhi kabhi conflict karta hai. Remove karo, multer fileFilter
+      // already extension check kar raha hai.
+    };
+  },
+} as any);
 
 export const upload = multer({
   storage,

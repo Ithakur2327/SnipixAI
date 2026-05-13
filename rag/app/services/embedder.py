@@ -3,21 +3,12 @@ from typing import List
 
 logger = logging.getLogger(__name__)
 
-_model = None
-
-
-def _get_model():
-    """Lazy-load sentence-transformers model (free, runs locally)."""
-    global _model
-    if _model is None:
-        from sentence_transformers import SentenceTransformer
-        logger.info("[embedder] Loading sentence-transformers model...")
-        # all-MiniLM-L6-v2 → 384-dim, fast, free
-        # all-mpnet-base-v2  → 768-dim, higher quality
-        # IMPORTANT: match dim to your Pinecone index dimension!
-        _model = SentenceTransformer("all-MiniLM-L6-v2")
-        logger.info("[embedder] Model loaded ✅")
-    return _model
+# ✅ FIX: Server start hote hi model load karo — lazy load ki wajah se
+# pehla document 1+ minute late process hota tha aur frontend timeout karta tha
+logger.info("[embedder] Loading sentence-transformers model...")
+from sentence_transformers import SentenceTransformer
+_model = SentenceTransformer("all-MiniLM-L6-v2")
+logger.info("[embedder] Model loaded ✅")
 
 
 def embed_texts(texts: List[str]) -> List[List[float]]:
@@ -25,8 +16,7 @@ def embed_texts(texts: List[str]) -> List[List[float]]:
     Embed a list of texts using a local sentence-transformers model.
     No API calls, no rate limits, completely free.
     """
-    model = _get_model()
-    vectors = model.encode(texts, batch_size=32, show_progress_bar=False)
+    vectors = _model.encode(texts, batch_size=32, show_progress_bar=False)
     logger.info(f"[embedder] Embedded {len(texts)} texts locally")
     return [v.tolist() for v in vectors]
 

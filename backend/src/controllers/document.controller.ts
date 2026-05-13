@@ -1,18 +1,15 @@
-import { Response }              from "express";
-import { Document }              from "../models/Document";
+import { Response }               from "express";
+import { Document }               from "../models/Document";
 import { AuthRequest, SourceType } from "../types";
-import { ok, paginated }         from "../utils/response";
-import { AppError }              from "../middleware/errorHandler";
-import { processDocument }       from "../services/rag/pipeline";
-import {cloudinary, validateCloudinaryConfig} from "../config/cloudinary";
+import { ok, paginated }          from "../utils/response";
+import { AppError }               from "../middleware/errorHandler";
+import { processDocument }        from "../services/rag/pipeline";
+import { cloudinary }             from "../config/cloudinary";
 
 // Upload file
 export const uploadFile = async (req: AuthRequest, res: Response) => {
   const file = req.file as any;
   if (!file) throw new AppError("No file uploaded", 400);
-
-  // Validate Cloudinary config before proceeding
-  await validateCloudinaryConfig();
 
   const mimeToSourceType = (mime: string): SourceType => {
     switch (mime) {
@@ -30,15 +27,15 @@ export const uploadFile = async (req: AuthRequest, res: Response) => {
   const title      = (req.body.title as string) || file.originalname;
 
   const doc = await Document.create({
-    userId:     req.user!._id,
+    userId:       req.user!._id,
     title,
     sourceType,
-    sourceUrl:  file.path || null,
+    sourceUrl:    file.path || null,
     cloudinaryId: file.filename || null,
-    rawText:    "",
-    wordCount:  0,
-    pageCount:  null,
-    status:     "extracting",
+    rawText:      "",
+    wordCount:    0,
+    pageCount:    null,
+    status:       "extracting",
     metadata: {
       originalName: file.originalname,
       mimeType:     file.mimetype,
@@ -61,16 +58,16 @@ export const submitUrl = async (req: AuthRequest, res: Response) => {
   if (!url) throw new AppError("URL is required", 400);
 
   const doc = await Document.create({
-    userId:      req.user!._id,
-    title:       title || url,
-    sourceType:  "url",
-    sourceUrl:   url,
+    userId:       req.user!._id,
+    title:        title || url,
+    sourceType:   "url",
+    sourceUrl:    url,
     cloudinaryId: null,
-    rawText:     "",
-    wordCount:   0,
-    pageCount:   null,
-    status:      "extracting",
-    metadata:    { originalName: url, mimeType: "text/html", fileSize: 0 },
+    rawText:      "",
+    wordCount:    0,
+    pageCount:    null,
+    status:       "extracting",
+    metadata:     { originalName: url, mimeType: "text/html", fileSize: 0 },
   });
 
   await (req.user as any).updateOne({ $inc: { usageCount: 1 } });
@@ -88,16 +85,16 @@ export const submitText = async (req: AuthRequest, res: Response) => {
   if (!text) throw new AppError("Text is required", 400);
 
   const doc = await Document.create({
-    userId:      req.user!._id,
-    title:       title || "Raw text",
-    sourceType:  "raw_text",
-    sourceUrl:   null,
+    userId:       req.user!._id,
+    title:        title || "Raw text",
+    sourceType:   "raw_text",
+    sourceUrl:    null,
     cloudinaryId: null,
-    rawText:     text,
-    wordCount:   text.split(/\s+/).filter(Boolean).length,
-    pageCount:   null,
-    status:      "extracting",
-    metadata:    { originalName: "raw_text", mimeType: "text/plain", fileSize: text.length },
+    rawText:      text,
+    wordCount:    text.split(/\s+/).filter(Boolean).length,
+    pageCount:    null,
+    status:       "ready",
+    metadata:     { originalName: "raw_text", mimeType: "text/plain", fileSize: text.length },
   });
 
   await (req.user as any).updateOne({ $inc: { usageCount: 1 } });
@@ -106,7 +103,7 @@ export const submitText = async (req: AuthRequest, res: Response) => {
     processDocument(doc._id.toString(), req.user!._id.toString()).catch(console.error);
   });
 
-  ok(res, { documentId: doc._id.toString(), status: "extracting" }, 202);
+  ok(res, { documentId: doc._id.toString(), status: "ready" }, 202);
 };
 
 // List documents
