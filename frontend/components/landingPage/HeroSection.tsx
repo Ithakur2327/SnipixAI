@@ -1,556 +1,444 @@
 "use client";
-import { useState, useRef } from "react";
-import UploadPanel from "./UploadPanel";
+import { useState, useRef, useCallback } from "react";
 import ResultPanel from "./ResultPanel";
 import { documentAPI, summaryAPI } from "@/lib/api";
+import { useDropzone } from "react-dropzone";
+
+const OUTPUT_TYPES = [
+  { id: "bullets",         label: "Bullets" },
+  { id: "tldr",            label: "TL;DR" },
+  { id: "key_insights",    label: "Key Insights" },
+  { id: "action_points",   label: "Action Points" },
+  { id: "section_summary", label: "Section View" },
+];
+
+const MIME_TO_SOURCE: Record<string, string> = {
+  "application/pdf": "pdf",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation": "ppt",
+  "text/plain": "txt",
+  "image/png": "image",
+  "image/jpeg": "image",
+};
+
+type InputMode = "file" | "url" | "text";
 
 export default function HeroSection() {
-  const [result, setResult] = useState<string[] | null>(null);
-  const [outputType, setOutputType] = useState("bullets");
-  const [loading, setLoading] = useState(false);
-  const [splitPercent, setSplitPercent] = useState(50);
-  const [isDragging, setIsDragging] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const [result,      setResult]      = useState<string[] | null>(null);
+  const [outputType,  setOutputType]  = useState("bullets");
+  const [loading,     setLoading]     = useState(false);
+  const [inputMode,   setInputMode]   = useState<InputMode>("text");
+  const [text,        setText]        = useState("");
+  const [url,         setUrl]         = useState("");
+  const [file,        setFile]        = useState<File | null>(null);
+  const [attachOpen,  setAttachOpen]  = useState(false);
+  const [errorMsg,    setErrorMsg]    = useState<string | null>(null);
+  const attachRef   = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const mapMimeToSourceType = (mime: string) => {
-    switch (mime) {
-      case "application/pdf": return "pdf";
-      case "application/vnd.openxmlformats-officedocument.wordprocessingml.document": return "docx";
-      case "application/vnd.openxmlformats-officedocument.presentationml.presentation": return "ppt";
-      case "text/plain": return "txt";
-      case "image/png":
-      case "image/jpeg": return "image";
-      default: return "pdf";
+  const onDrop = useCallback((accepted: File[]) => {
+    if (accepted[0]) {
+      setFile(accepted[0]);
+      setInputMode("file");
+      setAttachOpen(false);
+      setText("");
+      setUrl("");
     }
-  };
+  }, []);
 
-  const handleGenerate = async (
-    content: string,
-    type: string,
-    inputMode: "text" | "url" | "file",
-    file?: File
-  ) => {
-    setOutputType(type);
+  const { getRootProps, getInputProps, open: openFilePicker } = useDropzone({
+    onDrop,
+    multiple: false,
+    noClick: true,
+    noKeyboard: true,
+    maxSize: 25 * 1024 * 1024,
+    accept: {
+      "application/pdf": [".pdf"],
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [".docx"],
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation": [".pptx"],
+      "text/plain": [".txt"],
+      "image/png": [".png"],
+      "image/jpeg": [".jpg", ".jpeg"],
+    },
+  });
+
+  const handleGenerate = async () => {
+    if (loading) return;
+    setErrorMsg(null);
+    const canSubmit =
+      (inputMode === "text" && text.trim().split(/\s+/).length >= 5) ||
+      (inputMode === "url"  && url.trim().length > 0) ||
+      (inputMode === "file" && file !== null);
+    if (!canSubmit) return;
     setLoading(true);
     setResult(null);
-
     try {
       let documentId: string;
-
-      // Step 1: Upload document
       if (inputMode === "file" && file) {
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("sourceType", mapMimeToSourceType(file.type));
-        formData.append("title", file.name);
-        const { data } = await documentAPI.uploadFile(formData);
+        const fd = new FormData();
+        fd.append("file", file);
+        fd.append("sourceType", MIME_TO_SOURCE[file.type] ?? "pdf");
+        fd.append("title", file.name);
+        const { data } = await documentAPI.uploadFile(fd);
         documentId = data.data.documentId;
-
       } else if (inputMode === "url") {
-        const { data } = await documentAPI.submitUrl(content, content);
+        const { data } = await documentAPI.submitUrl(url.trim(), url.trim());
         documentId = data.data.documentId;
-
       } else {
-        const { data } = await documentAPI.submitText(
-          content,
-          `Summary - ${new Date().toLocaleDateString()}`
-        );
+        const { data } = await documentAPI.submitText(text.trim(), `Summary – ${new Date().toLocaleDateString()}`);
         documentId = data.data.documentId;
       }
-
-      if (!documentId) throw new Error("Failed to create document");
-
-      // Step 2: Poll until ready (max 60 seconds)
-    let status = "extracting";
-    let attempts = 0;
-    let failureMessage: string | null = null;
-
-
-while (status !== "ready" && status !== "failed" && attempts < 90) {
-  await new Promise((r) => setTimeout(r, 2000));
-  const { data: statusData } = await documentAPI.status(documentId);
-  status = statusData.data.status;
-  if (statusData.data.errorMessage) {
-    failureMessage = statusData.data.errorMessage;
-  }
-  attempts++;
-}
-
-if (status === "failed") {
-  throw new Error(
-    failureMessage
-      ? `Document processing failed: ${failureMessage}`
-      : "Document processing failed. Please try a different file or text."
-  );
-}
-if (attempts >= 90) {
-  throw new Error("Processing timed out. Please try again.");
-}
-
-      // Step 3: Generate summary
-      const { data: summaryData } = await summaryAPI.create(documentId, type);
-      const resultContent = summaryData.data.content;
-
-      if (Array.isArray(resultContent)) {
-        // section_summary: [{section, summary}] → flatten to strings
-        const flat = resultContent.map((item: any) =>
-          typeof item === "string"
-            ? item
-            : `${item.section}: ${item.summary}`
-        );
-        setResult(flat);
-      } else if (typeof resultContent === "string") {
-        setResult([resultContent]);
-      } else {
-        setResult([JSON.stringify(resultContent)]);
+      if (!documentId) throw new Error("Failed to create document.");
+      let status = "extracting";
+      let attempts = 0;
+      let failMsg: string | null = null;
+      while (status !== "ready" && status !== "failed" && attempts < 90) {
+        await new Promise((r) => setTimeout(r, 2000));
+        const { data: sd } = await documentAPI.status(documentId);
+        status  = sd.data.status;
+        failMsg = sd.data.errorMessage ?? null;
+        attempts++;
       }
-
-    } catch (err: any) {
-      const msg = err?.message || err?.error?.message || "Something went wrong. Please try again.";
-      setResult([`Error: ${msg}`]);
+      if (status === "failed") throw new Error(failMsg ?? "Document processing failed.");
+      if (attempts >= 90)      throw new Error("Processing timed out. Please try again.");
+      const { data: sum } = await summaryAPI.create(documentId, outputType);
+      const content = sum.data.content;
+      if (Array.isArray(content)) {
+        setResult(content.map((item: unknown) =>
+          typeof item === "string" ? item : `${(item as {section:string}).section}: ${(item as {summary:string}).summary}`
+        ));
+      } else {
+        setResult([String(content)]);
+      }
+    } catch (err: unknown) {
+      const msg = (err as Error)?.message ?? "Something went wrong. Please try again.";
+      setErrorMsg(msg);
     } finally {
       setLoading(false);
     }
   };
 
-  const startDrag = (e: React.MouseEvent | React.TouchEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-
-    const move = (ev: MouseEvent | TouchEvent) => {
-      if (!containerRef.current) return;
-      const rect = containerRef.current.getBoundingClientRect();
-      const clientX =
-        "touches" in ev ? ev.touches[0].clientX : ev.clientX;
-      const pct = ((clientX - rect.left) / rect.width) * 100;
-      setSplitPercent(Math.min(75, Math.max(25, pct)));
-    };
-
-    const stop = () => {
-      setIsDragging(false);
-      window.removeEventListener("mousemove", move);
-      window.removeEventListener("mouseup", stop);
-      window.removeEventListener("touchmove", move);
-      window.removeEventListener("touchend", stop);
-    };
-
-    window.addEventListener("mousemove", move);
-    window.addEventListener("mouseup", stop);
-    window.addEventListener("touchmove", move);
-    window.addEventListener("touchend", stop);
+  const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+      e.preventDefault();
+      handleGenerate();
+    }
   };
 
+  const canSend =
+    !loading &&
+    ((inputMode === "text" && text.trim().split(/\s+/).length >= 5) ||
+     (inputMode === "url"  && url.trim().length > 0) ||
+     (inputMode === "file" && file !== null));
+
+  const inputLabel =
+    inputMode === "file" ? file?.name ?? "File selected"
+    : inputMode === "url"  ? "Web URL"
+    : "Text";
+
   return (
-    <section
-      style={{
-        minHeight: "100vh",
-        paddingTop: "0",
-        display: "flex",
-        flexDirection: "column",
-        background: "#000000",
-      }}
-    >
+    <section style={{ minHeight: "100vh", display: "flex", flexDirection: "column", background: "#000000" }}>
       <style>{`
-        /* ── Keyframes ── */
         @import url('https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@700&display=swap');
 
-        @keyframes snipix-fadein {
-          from { opacity: 0; transform: translateY(18px); }
+        @keyframes snx-hero-in {
+          from { opacity: 0; transform: translateY(22px); }
           to   { opacity: 1; transform: translateY(0); }
         }
-        @keyframes snipix-fadein-up {
-          from { opacity: 0; transform: translateY(10px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes snipix-badge-in {
-          from { opacity: 0; transform: scale(0.88) translateY(6px); }
-          to   { opacity: 1; transform: scale(1) translateY(0); }
-        }
-        @keyframes snipix-dot-pulse {
-          0%, 100% { opacity: 1;   box-shadow: 0 0 7px #E8590A; }
-          50%       { opacity: 0.4; box-shadow: 0 0 2px #E8590A; }
-        }
-        @keyframes snipix-divider-grow {
-          from { transform: scaleX(0); }
-          to   { transform: scaleX(1); }
-        }
-        @keyframes snipix-panel-in {
-          from { opacity: 0; transform: scale(0.975) translateY(14px); }
-          to   { opacity: 1; transform: scale(1) translateY(0); }
-        }
-        @keyframes snipix-underline-draw {
+        @keyframes snx-underline {
           from { stroke-dashoffset: 320; }
           to   { stroke-dashoffset: 0; }
         }
-        @keyframes snipix-tooltip-pop {
-          from { opacity: 0; transform: translateX(-50%) scale(0.85); }
-          to   { opacity: 1; transform: translateX(-50%) scale(1); }
+        @keyframes snx-bar-in {
+          from { opacity: 0; transform: translateY(16px) scale(0.98); }
+          to   { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        @keyframes snx-result-in {
+          from { opacity: 0; transform: translateY(12px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes snx-attach-pop {
+          from { opacity: 0; transform: translateY(8px) scale(0.94); }
+          to   { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        @keyframes snx-chip-in {
+          from { opacity: 0; transform: scale(0.88); }
+          to   { opacity: 1; transform: scale(1); }
         }
 
-        /* ── Animation classes ── */
-        .snipix-h1 {
-          animation: snipix-fadein 0.65s cubic-bezier(0.22,1,0.36,1) both;
-          animation-delay: 0.05s;
-        }
-        .snipix-badge {
-          animation: snipix-badge-in 0.55s cubic-bezier(0.22,1,0.36,1) both;
-          animation-delay: 0.22s;
-        }
-        .snipix-dot-live {
-          animation: snipix-dot-pulse 2s ease-in-out infinite;
-        }
-        .snipix-divider {
-          transform-origin: left center;
-          animation: snipix-divider-grow 0.5s cubic-bezier(0.22,1,0.36,1) both;
-          animation-delay: 0.35s;
-        }
-        .snipix-sub {
-          animation: snipix-fadein-up 0.6s cubic-bezier(0.22,1,0.36,1) both;
-          animation-delay: 0.42s;
-        }
-        .snipix-panel {
-          animation: snipix-panel-in 0.7s cubic-bezier(0.22,1,0.36,1) both;
-          animation-delay: 0.28s;
-        }
-        .snipix-underline-svg path {
-          stroke-dasharray: 320;
-          animation: snipix-underline-draw 0.9s cubic-bezier(0.22,1,0.36,1) both;
-          animation-delay: 0.18s;
-        }
-        .snipix-tooltip-pop {
-          animation: snipix-tooltip-pop 0.22s cubic-bezier(0.22,1,0.36,1) both;
-        }
-        .snipix-divider-bar {
-          transition: background 0.22s ease;
-        }
-        .snipix-divider-bar:hover {
-          background: rgba(232,89,10,0.5) !important;
-        }
+        .snx-h1      { animation: snx-hero-in 0.65s cubic-bezier(0.22,1,0.36,1) 0.05s both; }
+        .snx-divider { animation: snx-hero-in 0.5s  cubic-bezier(0.22,1,0.36,1) 0.32s both; }
+        .snx-sub     { animation: snx-hero-in 0.6s  cubic-bezier(0.22,1,0.36,1) 0.4s  both; }
+        .snx-bar     { animation: snx-bar-in  0.7s  cubic-bezier(0.22,1,0.36,1) 0.28s both; }
+        .snx-result  { animation: snx-result-in 0.5s cubic-bezier(0.22,1,0.36,1) both; }
+        .snx-svg-line path { stroke-dasharray: 320; animation: snx-underline 0.9s cubic-bezier(0.22,1,0.36,1) 0.18s both; }
 
-        .snipix-panel { display: flex; flex-direction: row; align-items: stretch; }
-        .snipix-panel-left { width: 50%; min-width: 320px; }
-        .snipix-panel-right { width: auto; }
-        .snipix-supported-bar { padding: 0 16px clamp(20px, 4vw, 34px); }
-
-        @media (max-width: 980px) {
-          .snipix-panel { flex-direction: column !important; min-height: auto !important; }
-          .snipix-panel-left, .snipix-panel-right { width: 100% !important; min-width: 0 !important; }
-          .snipix-divider-bar { width: 100% !important; height: 5px !important; cursor: row-resize !important; }
-          .snipix-divider-bar > div { flex-direction: row !important; gap: 8px !important; }
-          .snipix-divider-bar > div > div { width: 6px !important; height: 6px !important; }
-          .snipix-panel-left, .snipix-panel-right { border-radius: 0 !important; }
-          .snipix-panel { margin: 0 12px 24px !important; }
+        .snx-attach-option {
+          display: flex; align-items: center; gap: 10px;
+          padding: 10px 14px; border-radius: 10px; border: none;
+          background: transparent; cursor: pointer; width: 100%; text-align: left;
+          color: rgba(255,255,255,0.7); font-size: 13px;
+          transition: background 0.15s, color 0.15s;
         }
+        .snx-attach-option:hover { background: rgba(247,55,79,0.08); color: #fff; }
 
-        @media (max-width: 760px) {
-          h1 { font-size: clamp(24px, 7vw, 32px); white-space: normal !important; }
-          .snipix-sub { max-width: 100% !important; padding: 0 10px; }
-          .snipix-supported-bar { padding: 0 10px clamp(20px, 4vw, 28px) !important; }
-          .snipix-tooltip-pop { bottom: 18px !important; font-size: 11px !important; }
+        .snx-output-pill {
+          padding: 5px 12px; border-radius: 20px; border: none;
+          font-size: 11px; cursor: pointer; transition: all 0.15s; white-space: nowrap;
+        }
+        .snx-send-btn {
+          width: 38px; height: 38px; border-radius: 10px; border: none;
+          display: flex; align-items: center; justify-content: center;
+          flex-shrink: 0; cursor: pointer; transition: all 0.2s;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        @media (max-width: 768px) {
+          .snx-hero-head { padding: 16px 16px 14px !important; }
+          .snx-bar-wrap  { padding: 0 12px 28px !important; }
+          .snx-h1 { font-size: clamp(18px, 5.5vw, 26px) !important; white-space: normal !important; text-align: center; }
+          .snx-out-row { flex-wrap: wrap; gap: 6px !important; }
+          .snx-output-pill { font-size: 10px; padding: 4px 10px; }
+        }
+        @media (max-width: 480px) {
+          .snx-textarea { font-size: 13px !important; }
+          .snx-h1 { font-size: clamp(16px, 5vw, 22px) !important; }
         }
       `}</style>
 
-      {/* ══════════════════════════════
-          HEADING BLOCK
-      ══════════════════════════════ */}
-      <div
-        style={{
-          textAlign: "center",
-          padding: "clamp(10px, 1.5vw, 18px) 24px 20px",
-        }}
-      >
-        {/* ── H1 ── */}
-        <h1
-          className="snipix-h1"
-          style={{
-            fontFamily: "'Josefin Sans', 'Arial Black', sans-serif",
-            fontSize: "clamp(18px, 2vw, 28px)",
-            fontWeight: 700,
-            lineHeight: 1.1,
-            letterSpacing: "0.5px",
-            margin: "0 0 4px 0",
-            textTransform: "uppercase",
-            whiteSpace: "nowrap",
-          }}
-        >
+      {/* ─── HEADING ─────────────────────────────────────────── */}
+      <div className="snx-hero-head" style={{ textAlign: "center", padding: "clamp(16px,2vw,28px) 24px 20px" }}>
+        <h1 className="snx-h1" style={{
+          fontFamily: "'Josefin Sans','Arial Black',sans-serif",
+          fontSize: "clamp(20px, 2.4vw, 32px)",
+          fontWeight: 700, lineHeight: 1.1, letterSpacing: "0.5px",
+          margin: "0 0 4px", textTransform: "uppercase", whiteSpace: "nowrap",
+        }}>
           <span style={{ color: "#FFFFFF" }}>Summarize </span>
-          <span
-            style={{
-              color: "#E8590A",
-              position: "relative",
-              display: "inline-block",
-            }}
-          >
+          <span style={{ color: "#F7374F", position: "relative", display: "inline-block" }}>
             anything
-            <svg
-              viewBox="0 0 300 12"
-              className="snipix-underline-svg"
-              style={{
-                position: "absolute",
-                bottom: "-2px",
-                left: 0,
-                width: "100%",
-                height: "7px",
-              }}
-              preserveAspectRatio="none"
-            >
-              <path
-                d="M0 8 Q75 2 150 6 Q225 10 300 4"
-                stroke="#E8590A"
-                strokeWidth="2"
-                fill="none"
-                opacity="0.55"
-                strokeLinecap="round"
-              />
+            <svg viewBox="0 0 300 12" className="snx-svg-line" style={{ position: "absolute", bottom: "-2px", left: 0, width: "100%", height: "7px" }} preserveAspectRatio="none">
+              <path d="M0 8 Q75 2 150 6 Q225 10 300 4" stroke="#F7374F" strokeWidth="2" fill="none" opacity="0.5" strokeLinecap="round" />
             </svg>
           </span>
-          <span
-            style={{
-              color: "rgba(255,255,255,0.18)",
-              WebkitTextStroke: "1px rgba(255,255,255,0.15)",
-              WebkitTextFillColor: "transparent",
-            }}
-          >
-            {" "}Instantly.
-          </span>
+          <span style={{ color: "rgba(255,255,255,0.15)", WebkitTextStroke: "1px rgba(255,255,255,0.12)", WebkitTextFillColor: "transparent" }}>{" "}Instantly.</span>
         </h1>
 
-        {/* ── Badge ── */}
-        <div
-          className="snipix-badge"
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "6px",
-            background: "rgba(232,89,10,0.08)",
-            border: "1px solid rgba(232,89,10,0.22)",
-            borderRadius: "100px",
-            padding: "5px 14px",
-            margin: "16px 0 14px",
-          }}
-        >
-          <div
-            className="snipix-dot-live"
-            style={{
-              width: "5px",
-              height: "5px",
-              borderRadius: "50%",
-              background: "#E8590A",
-              boxShadow: "0 0 7px #E8590A",
-              flexShrink: 0,
-            }}
-          />
-          <span
-            style={{
-              fontSize: "10px",
-              color: "#E8590A",
-              fontWeight: 600,
-              letterSpacing: "2.5px",
-              textTransform: "uppercase",
-              fontFamily: "var(--font-inter), sans-serif",
-            }}
-          >
-            RAG-Powered AI Summarizer
-          </span>
-        </div>
+        <div className="snx-divider" style={{ width: "30px", height: "2px", background: "#F7374F", margin: "16px auto 14px", borderRadius: "2px" }} />
 
-        {/* ── Orange divider ── */}
-        <div
-          className="snipix-divider"
-          style={{
-            width: "32px",
-            height: "2px",
-            background: "#E8590A",
-            margin: "0 auto 14px",
-            borderRadius: "2px",
-          }}
-        />
-
-        {/* ── Subheading ── */}
-        <p
-          className="snipix-sub"
-          style={{
-            fontFamily: "var(--font-inter), sans-serif",
-            fontSize: "clamp(12px, 1.3vw, 14px)",
-            color: "rgba(255,255,255,0.35)",
-            maxWidth: "520px",
-            margin: "0 auto",
-            lineHeight: 1.85,
-            fontWeight: 400,
-          }}
-        >
+        <p className="snx-sub" style={{
+          fontSize: "clamp(12px, 1.3vw, 14px)", color: "rgba(255,255,255,0.32)",
+          maxWidth: "520px", margin: "0 auto", lineHeight: 1.85,
+        }}>
           Drop a{" "}
-          <span
-            style={{
-              color: "rgba(255,255,255,0.65)",
-              fontWeight: 500,
-              background: "rgba(255,255,255,0.06)",
-              padding: "1px 7px",
-              borderRadius: "4px",
-              fontSize: "11px",
-              letterSpacing: "0.3px",
-            }}
-          >
+          <span style={{ color: "rgba(255,255,255,0.6)", fontWeight: 500, background: "rgba(255,255,255,0.05)", padding: "1px 7px", borderRadius: "4px", fontSize: "11px" }}>
             PDF · DOCX · URL · PPT · Image · Raw text
           </span>
           {" "}and get crisp summaries, key insights, and action points in seconds.
         </p>
       </div>
 
-      {/* ══════════════════════════════
-          SPLIT PANEL
-      ══════════════════════════════ */}
-      <div
-        ref={containerRef}
-        className="snipix-panel"
-        style={{
-          flex: 1,
-          margin: "0 clamp(12px, 3vw, 32px) 24px",
-          borderRadius: "20px",
-          overflow: "hidden",
-          border: "1px solid rgba(255,255,255,0.07)",
-          display: "flex",
-          flexDirection: "row",
-          minHeight: "clamp(400px, 52vh, 600px)",
-          position: "relative",
-          userSelect: isDragging ? "none" : "auto",
-        }}
-      >
-        {/* LEFT — Upload Panel */}
-        <div
-          className="snipix-panel-left"
-          style={{
-            width: `${splitPercent}%`,
-            background: "#13131A",
-            padding: "clamp(16px, 2.5vw, 28px)",
-            overflow: "auto",
-            overflowX: "hidden",
-            flexShrink: 0,
-            transition: isDragging ? "none" : "width 0.08s ease",
-          }}
-        >
-          <UploadPanel onGenerate={handleGenerate} />
+      {/* ─── MAIN BAR AREA ───────────────────────────────────── */}
+      <div className="snx-bar-wrap" style={{ flex: 1, padding: "0 clamp(12px,4vw,80px) 40px", display: "flex", flexDirection: "column", gap: "16px" }}>
+
+        {/* Output type row */}
+        <div className="snx-out-row snx-bar" style={{ display: "flex", alignItems: "center", gap: "8px", justifyContent: "center", flexWrap: "wrap" }}>
+          <span style={{ fontSize: "10px", color: "rgba(255,255,255,0.2)", letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600, marginRight: "4px" }}>Output</span>
+          {OUTPUT_TYPES.map((o) => (
+            <button key={o.id} onClick={() => setOutputType(o.id)} className="snx-output-pill"
+              style={{
+                background:  outputType === o.id ? "rgba(247,55,79,0.15)" : "rgba(255,255,255,0.04)",
+                border:      `1px solid ${outputType === o.id ? "rgba(247,55,79,0.45)" : "rgba(255,255,255,0.07)"}`,
+                color:       outputType === o.id ? "#F7374F" : "rgba(255,255,255,0.3)",
+                fontWeight:  outputType === o.id ? 600 : 400,
+              }}>
+              {o.label}
+            </button>
+          ))}
         </div>
 
-        {/* ── Draggable Divider ── */}
-        <div
-          className="snipix-divider-bar"
-          onMouseDown={startDrag}
-          onTouchStart={startDrag}
-          style={{
-            width: "5px",
-            background: isDragging ? "#E8590A" : "rgba(255,255,255,0.06)",
-            cursor: "col-resize",
-            flexShrink: 0,
+        {/* ── INPUT BOX ───────────────────────────────────────── */}
+        <div className="snx-bar" style={{ animationDelay: "0.36s", maxWidth: "960px", width: "100%", margin: "0 auto", position: "relative" }} {...getRootProps()}>
+          <input {...getInputProps()} />
+          <div style={{
+            background: "#0A0A0A", border: "1px solid rgba(255,255,255,0.09)",
+            borderRadius: "18px", overflow: "visible",
+            boxShadow: "0 0 0 1px rgba(0,0,0,0.4), 0 8px 32px rgba(0,0,0,0.4)",
             position: "relative",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 10,
-          }}
-        >
-          <div style={{ display: "flex", flexDirection: "column", gap: "3px", pointerEvents: "none" }}>
-            {[0, 1, 2, 3, 4].map((i) => (
-              <div
-                key={i}
+          }}>
+            {/* File/URL chip */}
+            {(inputMode === "file" || inputMode === "url") && (
+              <div style={{ padding: "12px 16px 0", display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                <div style={{
+                  display: "inline-flex", alignItems: "center", gap: "7px",
+                  background: "rgba(247,55,79,0.1)", border: "1px solid rgba(247,55,79,0.25)",
+                  borderRadius: "8px", padding: "4px 10px",
+                  animation: "snx-chip-in 0.2s ease both",
+                }}>
+                  {inputMode === "file" ? (
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                      <path d="M2 1h6l2 2v8a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1z" stroke="#F7374F" strokeWidth="1.2"/>
+                      <path d="M7 1v2h2" stroke="#F7374F" strokeWidth="1.2"/>
+                    </svg>
+                  ) : (
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                      <circle cx="6" cy="6" r="5" stroke="#F7374F" strokeWidth="1.2"/>
+                      <path d="M4 6h4M6 4v4" stroke="#F7374F" strokeWidth="1.2" strokeLinecap="round"/>
+                    </svg>
+                  )}
+                  <span style={{ fontSize: "11px", color: "rgba(255,255,255,0.7)", maxWidth: "200px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {inputLabel}
+                  </span>
+                  <button onClick={() => { setInputMode("text"); setFile(null); setUrl(""); }}
+                    style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.35)", padding: "0 0 0 2px", fontSize: "14px", lineHeight: 1 }}>×</button>
+                </div>
+              </div>
+            )}
+
+            {/* URL input */}
+            {inputMode === "url" && (
+              <div style={{ padding: "10px 16px 0" }}>
+                <input type="url" value={url} onChange={(e) => setUrl(e.target.value)}
+                  placeholder="https://example.com/article"
+                  style={{ width: "100%", background: "transparent", border: "none", outline: "none", color: "rgba(255,255,255,0.75)", fontSize: "14px", padding: "0" }}/>
+              </div>
+            )}
+
+            {/* Textarea — 3 rows, wider */}
+            {(inputMode === "text" || inputMode === "file") && (
+              <textarea ref={textareaRef} className="snx-textarea"
+                value={inputMode === "file" ? "" : text}
+                onChange={(e) => setText(e.target.value)}
+                onKeyDown={onKeyDown}
+                placeholder={inputMode === "file" ? "File selected — choose output type and send ↑" : "Paste your content here, or use + to attach a file or URL…"}
+                readOnly={inputMode === "file"}
+                rows={3}
                 style={{
-                  width: "3px",
-                  height: "3px",
-                  borderRadius: "50%",
-                  background: isDragging ? "#E8590A" : "rgba(255,255,255,0.25)",
-                  transition: "background 0.2s ease",
-                }}
-              />
-            ))}
+                  width: "100%", background: "transparent", border: "none", outline: "none", resize: "none",
+                  color: inputMode === "file" ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.8)",
+                  fontSize: "14px", lineHeight: 1.65, padding: "14px 16px",
+                  fontFamily: "var(--font-inter), sans-serif",
+                }}/>
+            )}
+
+            {/* Bottom bar */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+              {/* LEFT: attach + */}
+              <div style={{ position: "relative" }}>
+                <button onClick={(e) => { e.stopPropagation(); setAttachOpen((v) => !v); }}
+                  style={{
+                    width: "34px", height: "34px", borderRadius: "9px", border: "1px solid rgba(255,255,255,0.08)",
+                    background: attachOpen ? "rgba(247,55,79,0.1)" : "rgba(255,255,255,0.04)",
+                    cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+                    transition: "all 0.15s", color: attachOpen ? "#F7374F" : "rgba(255,255,255,0.4)", flexShrink: 0,
+                  }} title="Attach file or URL">
+                  <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+                    <path d="M7.5 2v11M2 7.5h11" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
+                  </svg>
+                </button>
+
+                {attachOpen && (
+                  <div ref={attachRef} onClick={(e) => e.stopPropagation()} style={{
+                    position: "absolute", bottom: "calc(100% + 8px)", left: 0,
+                    background: "#0C0C0C", border: "1px solid rgba(255,255,255,0.09)",
+                    borderRadius: "14px", padding: "6px", minWidth: "210px",
+                    boxShadow: "0 16px 48px rgba(0,0,0,0.6)",
+                    zIndex: 50, animation: "snx-attach-pop 0.18s ease both",
+                  }}>
+                    <button className="snx-attach-option" onClick={() => { openFilePicker(); setAttachOpen(false); }}>
+                      <div style={{ width: "28px", height: "28px", borderRadius: "7px", background: "rgba(247,55,79,0.1)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                          <path d="M3 1h7l3 3v9H3V1z" stroke="#F7374F" strokeWidth="1.3"/>
+                          <path d="M9 1v3h3" stroke="#F7374F" strokeWidth="1.3"/>
+                        </svg>
+                      </div>
+                      <div>
+                        <p style={{ fontSize: "12px", fontWeight: 600, color: "rgba(255,255,255,0.85)" }}>Upload File</p>
+                        <p style={{ fontSize: "10px", color: "rgba(255,255,255,0.3)", marginTop: "1px" }}>PDF · DOCX · PPT · TXT · Image</p>
+                      </div>
+                    </button>
+                    <button className="snx-attach-option" onClick={() => { setInputMode("url"); setFile(null); setText(""); setAttachOpen(false); }}>
+                      <div style={{ width: "28px", height: "28px", borderRadius: "7px", background: "rgba(99,102,241,0.1)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                          <circle cx="7" cy="7" r="5.5" stroke="#818CF8" strokeWidth="1.3"/>
+                          <path d="M4.5 7c0-1.5.8-2.5 2.5-2.5s2.5 1 2.5 2.5-.8 2.5-2.5 2.5" stroke="#818CF8" strokeWidth="1.3" strokeLinecap="round"/>
+                          <path d="M2 7h10" stroke="#818CF8" strokeWidth="1.1" strokeLinecap="round"/>
+                        </svg>
+                      </div>
+                      <div>
+                        <p style={{ fontSize: "12px", fontWeight: 600, color: "rgba(255,255,255,0.85)" }}>Web URL</p>
+                        <p style={{ fontSize: "10px", color: "rgba(255,255,255,0.3)", marginTop: "1px" }}>Extract from any webpage</p>
+                      </div>
+                    </button>
+                    <div style={{ height: "1px", background: "rgba(255,255,255,0.05)", margin: "5px 0" }} />
+                    <div style={{ padding: "4px 10px 6px" }}>
+                      <p style={{ fontSize: "10px", color: "rgba(255,255,255,0.2)" }}>Or type / paste text directly in the box above</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* RIGHT: word count + send */}
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                {inputMode === "text" && text.trim().length > 0 && (
+                  <span style={{ fontSize: "10px", color: "rgba(255,255,255,0.18)" }}>
+                    {text.trim().split(/\s+/).length} words
+                  </span>
+                )}
+                <button className="snx-send-btn"
+                  onClick={() => { setAttachOpen(false); handleGenerate(); }}
+                  disabled={!canSend}
+                  style={{
+                    background:  canSend ? "#F7374F" : "rgba(247,55,79,0.2)",
+                    boxShadow:   canSend ? "0 0 20px rgba(247,55,79,0.4)" : "none",
+                    cursor:      canSend ? "pointer" : "not-allowed",
+                  }}
+                  title="Generate summary (Ctrl + Enter)">
+                  {loading ? (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style={{ animation: "spin 0.9s linear infinite" }}>
+                      <circle cx="12" cy="12" r="9" stroke="rgba(255,255,255,0.25)" strokeWidth="2.5"/>
+                      <path d="M12 3a9 9 0 0 1 9 9" stroke="white" strokeWidth="2.5" strokeLinecap="round"/>
+                    </svg>
+                  ) : (
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                      <path d="M8 13V3M4 7l4-4 4 4" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  )}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* RIGHT — Result Panel */}
-        <div
-          className="snipix-panel-right"
-          style={{
-            flex: 1,
-            background: "#000000",
-            padding: "clamp(16px, 2.5vw, 28px)",
-            overflow: "auto",
-            overflowX: "hidden",
-            minWidth: 0,
-            transition: isDragging ? "none" : "flex 0.08s ease",
-          }}
-        >
-          <ResultPanel result={result} outputType={outputType} loading={loading} />
-        </div>
-      </div>
+        {/* ── ERROR ── */}
+        {errorMsg && !loading && (
+          <div style={{
+            maxWidth: "960px", width: "100%", margin: "0 auto",
+            padding: "12px 16px", borderRadius: "12px",
+            background: "rgba(247,55,79,0.08)", border: "1px solid rgba(247,55,79,0.2)",
+            display: "flex", alignItems: "center", gap: "10px",
+          }}>
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0 }}>
+              <circle cx="7" cy="7" r="6" stroke="#F7374F" strokeWidth="1.3"/>
+              <path d="M7 4v3M7 9.5h.01" stroke="#F7374F" strokeWidth="1.4" strokeLinecap="round"/>
+            </svg>
+            <span style={{ fontSize: "12px", color: "rgba(255,255,255,0.6)", flex: 1 }}>{errorMsg}</span>
+            <button onClick={() => setErrorMsg(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.3)", fontSize: "16px" }}>×</button>
+          </div>
+        )}
 
-      {/* ── Drag % tooltip ── */}
-      {isDragging && (
-        <div
-          className="snipix-tooltip-pop"
-          style={{
-            position: "fixed",
-            bottom: "24px",
-            left: "50%",
-            transform: "translateX(-50%)",
-            background: "#E8590A",
-            color: "white",
-            padding: "6px 16px",
-            borderRadius: "20px",
-            fontSize: "12px",
-            fontWeight: 700,
-            pointerEvents: "none",
-            zIndex: 999,
-            fontFamily: "var(--font-inter), sans-serif",
-          }}
-        >
-          {Math.round(splitPercent)}% / {Math.round(100 - splitPercent)}%
-        </div>
-      )}
-
-      {/* ══════════════════════════════
-          SUPPORTED FORMATS BAR
-      ══════════════════════════════ */}
-      <div
-        className="snipix-supported-bar"
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: "6px",
-          flexWrap: "wrap",
-          padding: "0 24px clamp(24px, 4vw, 40px)",
-        }}
-      >
-        <span
-          style={{
-            fontSize: "9px",
-            color: "rgba(255,255,255,0.18)",
-            letterSpacing: "2px",
-            fontWeight: 600,
-            marginRight: "4px",
-            textTransform: "uppercase",
-            fontFamily: "var(--font-inter), sans-serif",
-          }}
-        >
-        </span>
-        {[].map((s) => (
-          <span
-            key={s}
-            style={{
-              fontSize: "10px",
-              padding: "3px 9px",
-              borderRadius: "5px",
-              background: "rgba(255,255,255,0.03)",
-              border: "1px solid rgba(255,255,255,0.06)",
-              color: "rgba(255,255,255,0.25)",
-              fontWeight: 500,
-              whiteSpace: "nowrap",
-              fontFamily: "var(--font-inter), sans-serif",
-              letterSpacing: "0.3px",
-            }}
-          >
-            {s}
-          </span>
-        ))}
+        {/* ── RESULT PANEL ── */}
+        {(result || loading) && (
+          <div className="snx-result" style={{ maxWidth: "960px", width: "100%", margin: "0 auto" }}>
+            <div style={{
+              background: "#0A0A0A", border: "1px solid rgba(255,255,255,0.07)",
+              borderRadius: "18px", padding: "clamp(16px,3vw,28px)",
+              boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
+            }}>
+              <ResultPanel result={result} outputType={outputType} loading={loading} />
+            </div>
+          </div>
+        )}
       </div>
     </section>
   );
