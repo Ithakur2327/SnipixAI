@@ -33,13 +33,16 @@ api.interceptors.response.use(
   (res) => res,
   (err) => {
     const error = err.response?.data?.error;
-    if (err.response?.status === 401) {
+    const status = err.response?.status;
+
+    if (status === 401) {
       if (typeof window !== "undefined") {
         localStorage.removeItem("snipix_token");
         localStorage.removeItem("snipix_user");
         localStorage.removeItem("snipix-auth");
       }
     }
+
     return Promise.reject(error || err);
   }
 );
@@ -71,7 +74,8 @@ export const summaryAPI = {
   create: (documentId: string, outputType: string) =>
     api.post(`/summaries/${documentId}`, { outputType }),
   list: (documentId: string) => api.get(`/summaries/${documentId}`),
-  delete: (id: string) => api.delete(`/summaries/${id}`),
+  delete: (documentId: string, summaryId: string) =>
+    api.delete(`/summaries/${documentId}/${summaryId}`),
 };
 
 export const ragAPI = {

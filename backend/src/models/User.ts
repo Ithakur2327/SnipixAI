@@ -9,7 +9,7 @@ const UserSchema = new Schema<IUser>(
     passwordHash: { type: String, required: true, select: false },
     plan:         { type: String, enum: ["free", "pro"], default: "free" },
     usageCount:   { type: Number, default: 0 },
-    usageLimit:   { type: Number, default: 10 },
+    usageLimit:   { type: Number, default: 50 },
     isActive:     { type: Boolean, default: true },
     avatarUrl:    { type: String, default: null },
   },

@@ -21,10 +21,7 @@ export const protect = async (req: AuthRequest, _res: Response, next: NextFuncti
   }
 };
 
-export const checkQuota = (req: AuthRequest, _res: Response, next: NextFunction) => {
-  if (!req.user) return next(new AppError("Unauthorized", 401));
-  if (req.user.usageCount >= req.user.usageLimit) {
-    return next(new AppError(`Quota exceeded (${req.user.usageLimit}). Upgrade to Pro.`, 429, "QUOTA_EXCEEDED"));
-  }
+export const checkQuota = (_req: AuthRequest, _res: Response, next: NextFunction) => {
+  // Quota is unlimited — all authenticated users can upload freely
   next();
 };

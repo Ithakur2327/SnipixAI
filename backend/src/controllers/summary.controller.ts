@@ -15,9 +15,14 @@ export const createSummary = async (req: AuthRequest, res: Response) => {
   if (!doc) throw new AppError("Document not found", 404);
   if (!doc.rawText) throw new AppError("Document has no extracted text", 422);
 
-  // Allow summaries once text extraction is complete, even if the RAG embedding pipeline is still pending.
-  if (doc.status !== "ready" && doc.status !== "extracting") {
-    throw new AppError("Document is still processing", 409, "NOT_READY");
+  // Allow summaries once text extraction is complete.
+  // "extracting" status means RAG embedding may still be in progress,
+  // but if rawText is populated we can summarize immediately.
+  if (doc.status === "failed") {
+    throw new AppError("Document processing failed. Please re-upload.", 422, "DOC_FAILED");
+  }
+  if (doc.status === "pending") {
+    throw new AppError("Document is still processing. Please wait.", 409, "NOT_READY");
   }
 
   // Return existing if already generated
@@ -31,7 +36,7 @@ export const createSummary = async (req: AuthRequest, res: Response) => {
     userId:           req.user!._id,
     outputType,
     content:          result.content,
-    modelName:        result.model || env.OPENAI_SUMMARIZE_MODEL,
+    modelName:        result.model || env.SUMMARIZE_MODEL,
     processingTimeMs: result.processingTimeMs,
     tokenUsage:       result.tokenUsage,
   });

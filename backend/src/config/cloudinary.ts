@@ -24,8 +24,9 @@ export const validateCloudinaryConfig = async (): Promise<void> => {
 const storage = new CloudinaryStorage({
   cloudinary,
   params: {
-    folder:         "snipixai",
-    resource_type:  "auto",
+    folder:          "snipixai",
+    resource_type:   "auto",
+    type:            "upload",    // Public upload (not private)
     allowed_formats: ["pdf", "docx", "pptx", "txt", "png", "jpg", "jpeg"],
   } as any,
 });

@@ -59,19 +59,24 @@ export default function UploadPanel({ onGenerate }: Props) {
   });
 
   const handleSubmit = () => {
-    if (activeInput === "URL") {
-      if (!url.trim()) return;
-      onGenerate(url.trim(), outputType, "url");
-    } else if (activeInput === "Text") {
-      if (!text.trim() || text.trim().split(/\s+/).length < 5) return;
-      onGenerate(text.trim(), outputType, "text");
-    } else if (activeInput === "File") {
-      // ✅ FIX: File mode mein file object pass karo, empty string nahi
-      if (!file) return;
-      onGenerate("", outputType, "file", file);
+  if (!isAuthenticated) {
+    if (typeof window !== "undefined") {
+      window.location.href = "/login";
     }
-  };
+    return;
+  }
 
+  if (activeInput === "URL") {
+    if (!url.trim()) return;
+    onGenerate(url.trim(), outputType, "url");
+  } else if (activeInput === "Text") {
+    if (!text.trim() || text.trim().split(/\s+/).length < 5) return;
+    onGenerate(text.trim(), outputType, "text");
+  } else if (activeInput === "File") {
+    if (!file) return;
+    onGenerate("", outputType, "file", file);
+  }
+};
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column", gap: "20px" }}>
 

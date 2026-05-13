@@ -30,6 +30,19 @@ def extract_text(
             raise ValueError("source_url required for file types")
 
         response = requests.get(source_url, timeout=30)
+        
+        # Enhanced error handling for Cloudinary issues
+        if response.status_code == 401:
+            logger.error(
+                f"[extractor] Cloudinary 401 Unauthorized. File may not be publicly accessible. "
+                f"URL: {source_url}. Consider enabling public file delivery in Cloudinary account settings."
+            )
+        elif response.status_code == 500:
+            logger.error(
+                f"[extractor] Cloudinary 500 Server Error. This may indicate account restrictions "
+                f"or misconfiguration. URL: {source_url}"
+            )
+        
         response.raise_for_status()
         buffer = BytesIO(response.content)
 
