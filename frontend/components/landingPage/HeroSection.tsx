@@ -33,6 +33,7 @@ export default function HeroSection() {
   const [file,        setFile]        = useState<File | null>(null);
   const [attachOpen,  setAttachOpen]  = useState(false);
   const [errorMsg,    setErrorMsg]    = useState<string | null>(null);
+  const [documentId,  setDocumentId]  = useState<string | null>(null);
   const attachRef   = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -89,6 +90,7 @@ export default function HeroSection() {
         documentId = data.data.documentId;
       }
       if (!documentId) throw new Error("Failed to create document.");
+      setDocumentId(documentId);
       let status = "extracting";
       let attempts = 0;
       let failMsg: string | null = null;
@@ -467,17 +469,15 @@ export default function HeroSection() {
           </div>
         )}
 
-        {/* ── RESULT PANEL ── */}
+        {/* ── RESULT PANEL (full-screen overlay) ── */}
         {(result || loading) && (
-          <div className="snx-result" style={{ maxWidth: "960px", width: "100%", margin: "0 auto", flexShrink: 0 }}>
-            <div style={{
-              background: "#0A0A0A", border: "1px solid rgba(255,255,255,0.07)",
-              borderRadius: "18px", padding: "clamp(16px,3vw,28px)",
-              boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
-            }}>
-              <ResultPanel result={result} outputType={outputType} loading={loading} />
-            </div>
-          </div>
+          <ResultPanel
+            result={result}
+            outputType={outputType}
+            loading={loading}
+            documentId={documentId}
+            onClose={() => { setResult(null); setLoading(false); setDocumentId(null); setErrorMsg(null); setText(""); setUrl(""); setFile(null); setInputMode("text"); }}
+          />
         )}
       </div>
     </section>
