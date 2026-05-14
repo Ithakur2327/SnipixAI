@@ -13,7 +13,7 @@ const OUTPUT_TYPES = [
 ];
 
 const TYPE_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  pdf:      { label: "PDF",  color: "#E8590A", bg: "rgba(232,89,10,0.15)" },
+  pdf:      { label: "PDF",  color: "#F7374F", bg: "rgba(247,55,79,0.15)" },
   docx:     { label: "DOC",  color: "#60A5FA", bg: "rgba(96,165,250,0.15)" },
   ppt:      { label: "PPT",  color: "#A78BFA", bg: "rgba(167,139,250,0.15)" },
   url:      { label: "URL",  color: "#34D399", bg: "rgba(52,211,153,0.15)" },
@@ -128,7 +128,7 @@ export default function DocumentPage({ params }: { params: { id: string } }) {
 
             {/* Processing state */}
             {isProcessing && (
-              <div style={{ textAlign: "center", padding: "32px", borderRadius: "14px", background: "rgba(232,89,10,0.05)", border: "1px solid rgba(232,89,10,0.1)" }}>
+              <div style={{ textAlign: "center", padding: "32px", borderRadius: "14px", background: "rgba(247,55,79,0.05)", border: "1px solid rgba(247,55,79,0.1)" }}>
                 <div style={{ fontSize: "28px", marginBottom: "12px" }}>⏳</div>
                 <p style={{ fontSize: "13px", fontWeight: 600, color: "#fff", marginBottom: "6px" }}>Processing your document...</p>
                 <p style={{ fontSize: "12px", color: "rgba(255,255,255,0.35)" }}>Extracting text, chunking, and embedding. This takes ~10-30 seconds.</p>
@@ -142,9 +142,9 @@ export default function DocumentPage({ params }: { params: { id: string } }) {
                   {OUTPUT_TYPES.map((o) => (
                     <button key={o.id} onClick={() => setOutputType(o.id)} style={{
                       padding: "5px 12px", borderRadius: "20px", fontSize: "12px", cursor: "pointer",
-                      border: outputType === o.id ? "1px solid rgba(232,89,10,0.5)" : "1px solid rgba(255,255,255,0.08)",
-                      background: outputType === o.id ? "rgba(232,89,10,0.15)" : "transparent",
-                      color: outputType === o.id ? "#E8590A" : "rgba(255,255,255,0.35)",
+                      border: outputType === o.id ? "1px solid rgba(247,55,79,0.5)" : "1px solid rgba(255,255,255,0.08)",
+                      background: outputType === o.id ? "rgba(247,55,79,0.15)" : "transparent",
+                      color: outputType === o.id ? "#F7374F" : "rgba(255,255,255,0.35)",
                       fontWeight: outputType === o.id ? 600 : 400, transition: "all 0.15s",
                     }}>
                       {o.label}
@@ -155,7 +155,7 @@ export default function DocumentPage({ params }: { params: { id: string } }) {
                 {/* Summary content */}
                 <div style={{ borderRadius: "14px", padding: "20px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "14px" }}>
-                    <span style={{ fontSize: "11px", fontWeight: 700, color: "#E8590A", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                    <span style={{ fontSize: "11px", fontWeight: 700, color: "#F7374F", textTransform: "uppercase", letterSpacing: "0.08em" }}>
                       {OUTPUT_TYPES.find((o) => o.id === outputType)?.label}
                     </span>
                     <span style={{ fontSize: "10px", color: "rgba(255,255,255,0.2)", background: "rgba(255,255,255,0.05)", padding: "2px 8px", borderRadius: "5px" }}>
@@ -173,7 +173,7 @@ export default function DocumentPage({ params }: { params: { id: string } }) {
                     <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
                       {(Array.isArray(summary.content) ? summary.content : [summary.content]).map((item: any, i: number) => (
                         <li key={i} style={{ display: "flex", gap: "12px", padding: "10px 0", borderBottom: i < (Array.isArray(summary.content) ? summary.content.length : 1) - 1 ? "1px solid rgba(255,255,255,0.05)" : "none", alignItems: "flex-start" }}>
-                          <span style={{ width: "20px", height: "20px", borderRadius: "6px", background: "rgba(232,89,10,0.15)", color: "#E8590A", fontSize: "10px", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                          <span style={{ width: "20px", height: "20px", borderRadius: "6px", background: "rgba(247,55,79,0.15)", color: "#F7374F", fontSize: "10px", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                             {i + 1}
                           </span>
                           <span style={{ fontSize: "13px", color: "rgba(255,255,255,0.75)", lineHeight: 1.7 }}>

@@ -137,7 +137,16 @@ export default function HeroSection() {
     : "Text";
 
   return (
-    <section style={{ minHeight: "100vh", display: "flex", flexDirection: "column", background: "#000000" }}>
+    <section style={{
+      /* 85dvh leaves more space for taskbar and system UI */
+      height: "85dvh",
+      minHeight: "85dvh",
+      display: "flex",
+      flexDirection: "column",
+      background: "#000000",
+      /* Prevent the section itself from scrolling — content fits inside */
+      overflow: "hidden",
+    }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@700&display=swap');
 
@@ -193,24 +202,35 @@ export default function HeroSection() {
         }
         @keyframes spin { to { transform: rotate(360deg); } }
 
+        /* ── RESPONSIVE ─────────────────────────────────────── */
         @media (max-width: 768px) {
-          .snx-hero-head { padding: 16px 16px 14px !important; }
-          .snx-bar-wrap  { padding: 0 12px 28px !important; }
-          .snx-h1 { font-size: clamp(18px, 5.5vw, 26px) !important; white-space: normal !important; text-align: center; }
+          .snx-hero-head { padding: 14px 16px 10px !important; }
+          .snx-bar-wrap  { padding: 0 12px env(safe-area-inset-bottom, 16px) !important; padding-bottom: max(16px, env(safe-area-inset-bottom, 16px)) !important; }
+          .snx-h1 { font-size: clamp(16px, 5vw, 24px) !important; white-space: normal !important; text-align: center; }
           .snx-out-row { flex-wrap: wrap; gap: 6px !important; }
           .snx-output-pill { font-size: 10px; padding: 4px 10px; }
+          .snx-divider { margin: 10px auto 10px !important; }
         }
         @media (max-width: 480px) {
           .snx-textarea { font-size: 13px !important; }
-          .snx-h1 { font-size: clamp(16px, 5vw, 22px) !important; }
+          .snx-h1 { font-size: clamp(14px, 4.5vw, 20px) !important; }
+        }
+
+        /* Ensure the bottom bar is always visible above iOS home indicator */
+        .snx-bar-wrap {
+          padding-bottom: max(clamp(12px, 3vh, 40px), env(safe-area-inset-bottom, 0px));
         }
       `}</style>
 
       {/* ─── HEADING ─────────────────────────────────────────── */}
-      <div className="snx-hero-head" style={{ textAlign: "center", padding: "clamp(16px,2vw,28px) 24px 20px" }}>
+      <div className="snx-hero-head" style={{
+        textAlign: "center",
+        padding: "clamp(10px,2vw,20px) 24px clamp(8px,1vw,16px)",
+        flexShrink: 0,
+      }}>
         <h1 className="snx-h1" style={{
           fontFamily: "'Josefin Sans','Arial Black',sans-serif",
-          fontSize: "clamp(20px, 2.4vw, 32px)",
+          fontSize: "clamp(18px, 2.4vw, 32px)",
           fontWeight: 700, lineHeight: 1.1, letterSpacing: "0.5px",
           margin: "0 0 4px", textTransform: "uppercase", whiteSpace: "nowrap",
         }}>
@@ -221,14 +241,19 @@ export default function HeroSection() {
               <path d="M0 8 Q75 2 150 6 Q225 10 300 4" stroke="#F7374F" strokeWidth="2" fill="none" opacity="0.5" strokeLinecap="round" />
             </svg>
           </span>
-          <span style={{ color: "rgba(255,255,255,0.15)", WebkitTextStroke: "1px rgba(255,255,255,0.12)", WebkitTextFillColor: "transparent" }}>{" "}Instantly.</span>
+          {/* INSTANTLY — brighter outline text */}
+          <span style={{
+            WebkitTextStroke: "1px rgba(255,255,255,0.45)",
+            WebkitTextFillColor: "transparent",
+            color: "transparent",
+          }}>{" "}Instantly.</span>
         </h1>
 
-        <div className="snx-divider" style={{ width: "30px", height: "2px", background: "#F7374F", margin: "16px auto 14px", borderRadius: "2px" }} />
+        <div className="snx-divider" style={{ width: "30px", height: "2px", background: "#F7374F", margin: "12px auto 10px", borderRadius: "2px" }} />
 
         <p className="snx-sub" style={{
-          fontSize: "clamp(12px, 1.3vw, 14px)", color: "rgba(255,255,255,0.32)",
-          maxWidth: "520px", margin: "0 auto", lineHeight: 1.85,
+          fontSize: "clamp(11px, 1.2vw, 14px)", color: "rgba(255,255,255,0.32)",
+          maxWidth: "520px", margin: "0 auto 16px", lineHeight: 1.8,
         }}>
           Drop a{" "}
           <span style={{ color: "rgba(255,255,255,0.6)", fontWeight: 500, background: "rgba(255,255,255,0.05)", padding: "1px 7px", borderRadius: "4px", fontSize: "11px" }}>
@@ -239,10 +264,24 @@ export default function HeroSection() {
       </div>
 
       {/* ─── MAIN BAR AREA ───────────────────────────────────── */}
-      <div className="snx-bar-wrap" style={{ flex: 1, padding: "0 clamp(12px,4vw,80px) 40px", display: "flex", flexDirection: "column", gap: "16px" }}>
+      {/* flex:1 + justifyContent:flex-end pushes input to the bottom */}
+      <div
+        className="snx-bar-wrap"
+        style={{
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "flex-end",   /* ← key: pushes content to bottom */
+          gap: "6px",
+          padding: `0 clamp(12px,4vw,80px) clamp(8px,1.5vh,20px)`,
+          /* never let this area itself scroll */
+          overflow: "hidden",
+          minHeight: 0,
+        }}
+      >
 
         {/* Output type row */}
-        <div className="snx-out-row snx-bar" style={{ display: "flex", alignItems: "center", gap: "8px", justifyContent: "center", flexWrap: "wrap" }}>
+        <div className="snx-out-row snx-bar" style={{ display: "flex", alignItems: "center", gap: "8px", justifyContent: "center", flexWrap: "wrap", flexShrink: 0 }}>
           <span style={{ fontSize: "10px", color: "rgba(255,255,255,0.2)", letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600, marginRight: "4px" }}>Output</span>
           {OUTPUT_TYPES.map((o) => (
             <button key={o.id} onClick={() => setOutputType(o.id)} className="snx-output-pill"
@@ -258,7 +297,7 @@ export default function HeroSection() {
         </div>
 
         {/* ── INPUT BOX ───────────────────────────────────────── */}
-        <div className="snx-bar" style={{ animationDelay: "0.36s", maxWidth: "960px", width: "100%", margin: "0 auto", position: "relative" }} {...getRootProps()}>
+        <div className="snx-bar" style={{ animationDelay: "0.36s", maxWidth: "960px", width: "100%", margin: "0 auto", position: "relative", flexShrink: 0 }} {...getRootProps()}>
           <input {...getInputProps()} />
           <div style={{
             background: "#0A0A0A", border: "1px solid rgba(255,255,255,0.09)",
@@ -304,7 +343,7 @@ export default function HeroSection() {
               </div>
             )}
 
-            {/* Textarea — 3 rows, wider */}
+            {/* Textarea — 3 rows */}
             {(inputMode === "text" || inputMode === "file") && (
               <textarea ref={textareaRef} className="snx-textarea"
                 value={inputMode === "file" ? "" : text}
@@ -417,6 +456,7 @@ export default function HeroSection() {
             padding: "12px 16px", borderRadius: "12px",
             background: "rgba(247,55,79,0.08)", border: "1px solid rgba(247,55,79,0.2)",
             display: "flex", alignItems: "center", gap: "10px",
+            flexShrink: 0,
           }}>
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0 }}>
               <circle cx="7" cy="7" r="6" stroke="#F7374F" strokeWidth="1.3"/>
@@ -429,7 +469,7 @@ export default function HeroSection() {
 
         {/* ── RESULT PANEL ── */}
         {(result || loading) && (
-          <div className="snx-result" style={{ maxWidth: "960px", width: "100%", margin: "0 auto" }}>
+          <div className="snx-result" style={{ maxWidth: "960px", width: "100%", margin: "0 auto", flexShrink: 0 }}>
             <div style={{
               background: "#0A0A0A", border: "1px solid rgba(255,255,255,0.07)",
               borderRadius: "18px", padding: "clamp(16px,3vw,28px)",

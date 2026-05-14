@@ -126,7 +126,7 @@ export default function DocumentModal({
       <div
         style={{
           position: "fixed", bottom: "24px", right: "24px",
-          background: "#1A1A24", border: "1px solid rgba(232,89,10,0.4)",
+          background: "#1A1A24", border: "1px solid rgba(247,55,79,0.4)",
           borderRadius: "14px", padding: "12px 18px",
           display: "flex", alignItems: "center", gap: "12px",
           zIndex: 1000, cursor: "pointer",
@@ -134,11 +134,11 @@ export default function DocumentModal({
         }}
         onClick={() => setIsMinimized(false)}
       >
-        <div style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#E8590A", boxShadow: "0 0 8px #E8590A" }} />
+        <div style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#F7374F", boxShadow: "0 0 8px #F7374F" }} />
         <span style={{ fontSize: "13px", fontWeight: 600, color: "white", fontFamily: "var(--font-inter), sans-serif", maxWidth: "180px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {doc.title}
         </span>
-        <span style={{ fontSize: "11px", color: "#E8590A" }}>Expand ↗</span>
+        <span style={{ fontSize: "11px", color: "#F7374F" }}>Expand ↗</span>
       </div>
     );
   }
@@ -167,10 +167,10 @@ export default function DocumentModal({
           background: "rgba(255,255,255,0.02)",
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-            <div style={{ width: "32px", height: "32px", borderRadius: "8px", background: "rgba(232,89,10,0.15)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <div style={{ width: "32px", height: "32px", borderRadius: "8px", background: "rgba(247,55,79,0.15)", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <path d="M3 1h7l4 4v9a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1z" stroke="#E8590A" strokeWidth="1.2"/>
-                <path d="M10 1v4h4" stroke="#E8590A" strokeWidth="1.2"/>
+                <path d="M3 1h7l4 4v9a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1z" stroke="#F7374F" strokeWidth="1.2"/>
+                <path d="M10 1v4h4" stroke="#F7374F" strokeWidth="1.2"/>
               </svg>
             </div>
             <div>
@@ -193,8 +193,8 @@ export default function DocumentModal({
             <button key={tab} onClick={() => setActiveTab(tab)} style={{
               padding: "7px 20px", borderRadius: "8px", border: "none", cursor: "pointer",
               fontSize: "13px", fontWeight: activeTab === tab ? 600 : 400,
-              background: activeTab === tab ? "rgba(232,89,10,0.15)" : "transparent",
-              color: activeTab === tab ? "#E8590A" : "rgba(255,255,255,0.35)",
+              background: activeTab === tab ? "rgba(247,55,79,0.15)" : "transparent",
+              color: activeTab === tab ? "#F7374F" : "rgba(255,255,255,0.35)",
               transition: "all 0.15s", fontFamily: "var(--font-inter), sans-serif",
             }}>
               {tab === "summary" ? "📄 Summary" : "💬 Chat with Doc"}
@@ -213,9 +213,9 @@ export default function DocumentModal({
                 {OUTPUT_TYPES.map((o) => (
                   <button key={o.id} onClick={() => setActiveType(o.id)} style={{
                     padding: "6px 16px", borderRadius: "20px",
-                    border: activeType === o.id ? "1px solid rgba(232,89,10,0.5)" : "1px solid rgba(255,255,255,0.08)",
-                    background: activeType === o.id ? "rgba(232,89,10,0.15)" : "transparent",
-                    color: activeType === o.id ? "#E8590A" : "rgba(255,255,255,0.35)",
+                    border: activeType === o.id ? "1px solid rgba(247,55,79,0.5)" : "1px solid rgba(255,255,255,0.08)",
+                    background: activeType === o.id ? "rgba(247,55,79,0.15)" : "transparent",
+                    color: activeType === o.id ? "#F7374F" : "rgba(255,255,255,0.35)",
                     fontSize: "12px", fontWeight: activeType === o.id ? 600 : 400,
                     cursor: "pointer", transition: "all 0.15s",
                     fontFamily: "var(--font-inter), sans-serif",
@@ -227,7 +227,7 @@ export default function DocumentModal({
 
               <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: "16px", padding: "24px", maxWidth: "800px" }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
-                  <span style={{ fontSize: "11px", fontWeight: 700, color: "#E8590A", textTransform: "uppercase", letterSpacing: "1px", fontFamily: "var(--font-inter), sans-serif" }}>
+                  <span style={{ fontSize: "11px", fontWeight: 700, color: "#F7374F", textTransform: "uppercase", letterSpacing: "1px", fontFamily: "var(--font-inter), sans-serif" }}>
                     {OUTPUT_TYPES.find((o) => o.id === activeType)?.label}
                   </span>
                   {summary && (
@@ -256,7 +256,7 @@ export default function DocumentModal({
                   <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
                     {summaryItems.map((item: any, i: number) => (
                       <li key={i} style={{ display: "flex", gap: "14px", padding: "12px 0", borderBottom: i < summaryItems.length - 1 ? "1px solid rgba(255,255,255,0.05)" : "none", alignItems: "flex-start" }}>
-                        <span style={{ width: "22px", height: "22px", borderRadius: "6px", background: "rgba(232,89,10,0.12)", color: "#E8590A", fontSize: "10px", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: "1px", fontFamily: "var(--font-inter), sans-serif" }}>
+                        <span style={{ width: "22px", height: "22px", borderRadius: "6px", background: "rgba(247,55,79,0.12)", color: "#F7374F", fontSize: "10px", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: "1px", fontFamily: "var(--font-inter), sans-serif" }}>
                           {i + 1}
                         </span>
                         <span style={{ fontSize: "14px", color: "rgba(255,255,255,0.75)", lineHeight: 1.75, fontFamily: "var(--font-inter), sans-serif" }}>{formatSummaryItem(item)}</span>
@@ -285,7 +285,7 @@ export default function DocumentModal({
                   fontSize: "13px", cursor: summaryLoading ? "not-allowed" : "pointer",
                   fontFamily: "var(--font-inter), sans-serif", transition: "all 0.15s",
                 }}
-                onMouseEnter={(e) => { if (!summaryLoading) { e.currentTarget.style.borderColor = "rgba(232,89,10,0.4)"; e.currentTarget.style.color = "#E8590A"; } }}
+                onMouseEnter={(e) => { if (!summaryLoading) { e.currentTarget.style.borderColor = "rgba(247,55,79,0.4)"; e.currentTarget.style.color = "#F7374F"; } }}
                 onMouseLeave={(e) => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)"; e.currentTarget.style.color = "rgba(255,255,255,0.35)"; }}
               >
                 ↺ Regenerate summary
@@ -322,7 +322,7 @@ export default function DocumentModal({
                         <div style={{
                           padding: "12px 16px",
                           borderRadius: isUser ? "16px 16px 4px 16px" : "16px 16px 16px 4px",
-                          background: isUser ? "#E8590A" : "rgba(255,255,255,0.05)",
+                          background: isUser ? "#F7374F" : "rgba(255,255,255,0.05)",
                           border: isUser ? "none" : "1px solid rgba(255,255,255,0.07)",
                           fontSize: "14px", color: isUser ? "white" : "rgba(255,255,255,0.8)",
                           lineHeight: 1.65, fontFamily: "var(--font-inter), sans-serif",
@@ -364,7 +364,7 @@ export default function DocumentModal({
                 <button
                   onClick={sendMessage}
                   disabled={chatLoading || !input.trim()}
-                  style={{ padding: "12px 22px", borderRadius: "12px", border: "none", background: chatLoading || !input.trim() ? "rgba(232,89,10,0.4)" : "#E8590A", color: "white", fontSize: "14px", fontWeight: 600, cursor: chatLoading || !input.trim() ? "not-allowed" : "pointer", boxShadow: "0 0 16px rgba(232,89,10,0.3)", fontFamily: "var(--font-inter), sans-serif" }}>
+                  style={{ padding: "12px 22px", borderRadius: "12px", border: "none", background: chatLoading || !input.trim() ? "rgba(247,55,79,0.4)" : "#F7374F", color: "white", fontSize: "14px", fontWeight: 600, cursor: chatLoading || !input.trim() ? "not-allowed" : "pointer", boxShadow: "0 0 16px rgba(247,55,79,0.3)", fontFamily: "var(--font-inter), sans-serif" }}>
                   Send
                 </button>
               </div>

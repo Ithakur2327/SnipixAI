@@ -9,7 +9,7 @@ export default function ChatMessage({ message }: { message: ChatMsg }) {
         <div
           className="px-4 py-3 text-sm leading-relaxed"
           style={{
-            background:   isUser ? "#E8590A" : "#1A1A1A",
+            background:   isUser ? "#F7374F" : "#1A1A1A",
             color:        isUser ? "white"   : "#E0E0E0",
             borderRadius: isUser ? "16px 16px 4px 16px" : "16px 16px 16px 4px",
           }}

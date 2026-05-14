@@ -5,7 +5,7 @@ import { formatDate, formatWords } from "@/lib/utils";
 import DocumentModal from "./DocumentModal";
 
 const TYPE_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  pdf:      { label: "PDF",  color: "#E8590A", bg: "rgba(232,89,10,0.12)"   },
+  pdf:      { label: "PDF",  color: "#F7374F", bg: "rgba(247,55,79,0.12)"   },
   docx:     { label: "DOC",  color: "#60A5FA", bg: "rgba(96,165,250,0.12)"  },
   ppt:      { label: "PPT",  color: "#A78BFA", bg: "rgba(167,139,250,0.12)" },
   url:      { label: "URL",  color: "#34D399", bg: "rgba(52,211,153,0.12)"  },
@@ -46,14 +46,14 @@ export default function DocumentCard({ doc }: { doc: Document }) {
         }
         .doc-card:hover::before { opacity: 1; }
         .doc-card.ready:hover {
-          border-color: rgba(232,89,10,0.28);
-          background: rgba(232,89,10,0.03);
+          border-color: rgba(247,55,79,0.28);
+          background: rgba(247,55,79,0.03);
           transform: translateY(-3px);
           box-shadow: 0 10px 32px rgba(0,0,0,0.25);
         }
         .doc-open-btn {
           display: inline-flex; align-items: center; gap: 4px;
-          font-size: 11px; font-weight: 600; color: #E8590A;
+          font-size: 11px; font-weight: 600; color: #F7374F;
           font-family: var(--font-inter), sans-serif;
           opacity: 0; transform: translateX(-4px);
           transition: opacity 0.18s ease, transform 0.18s ease;
@@ -137,7 +137,7 @@ export default function DocumentCard({ doc }: { doc: Document }) {
             <span className="doc-open-btn">
               Open
               <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                <path d="M2.5 6h7M6.5 3l3 3-3 3" stroke="#E8590A" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M2.5 6h7M6.5 3l3 3-3 3" stroke="#F7374F" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
             </span>
           )}

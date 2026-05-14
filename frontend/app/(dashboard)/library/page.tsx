@@ -65,8 +65,8 @@ export default function LibraryPage() {
 
         /* ── CTA card ── */
         .lib-cta-card {
-          background: linear-gradient(140deg, rgba(232,89,10,0.13) 0%, rgba(232,89,10,0.04) 100%);
-          border: 1px solid rgba(232,89,10,0.22);
+          background: linear-gradient(140deg, rgba(247,55,79,0.13) 0%, rgba(247,55,79,0.04) 100%);
+          border: 1px solid rgba(247,55,79,0.22);
           border-radius: 18px;
           padding: 24px 26px;
           cursor: pointer;
@@ -76,10 +76,10 @@ export default function LibraryPage() {
           justify-content: space-between;
         }
         .lib-cta-card:hover {
-          background: linear-gradient(140deg, rgba(232,89,10,0.22) 0%, rgba(232,89,10,0.08) 100%);
-          border-color: rgba(232,89,10,0.45);
+          background: linear-gradient(140deg, rgba(247,55,79,0.22) 0%, rgba(247,55,79,0.08) 100%);
+          border-color: rgba(247,55,79,0.45);
           transform: translateY(-2px);
-          box-shadow: 0 12px 40px rgba(232,89,10,0.14);
+          box-shadow: 0 12px 40px rgba(247,55,79,0.14);
         }
         .lib-cta-card:active { transform: scale(0.98); }
 
@@ -98,7 +98,7 @@ export default function LibraryPage() {
         }
         .lib-search::placeholder { color: rgba(255,255,255,0.25); }
         .lib-search:focus {
-          border-color: rgba(232,89,10,0.45);
+          border-color: rgba(247,55,79,0.45);
           background: rgba(255,255,255,0.06);
         }
 
@@ -123,7 +123,7 @@ export default function LibraryPage() {
           color: rgba(255,255,255,0.75);
         }
         .lib-chip-active {
-          background: rgba(232,89,10,0.88);
+          background: rgba(247,55,79,0.88);
           color: #fff;
           font-weight: 600;
         }
@@ -165,7 +165,7 @@ export default function LibraryPage() {
             fontWeight: 600,
             letterSpacing: "2px",
             textTransform: "uppercase",
-            color: "#E8590A",
+            color: "#F7374F",
             marginBottom: "10px",
             opacity: 0.85,
           }}>
@@ -218,14 +218,14 @@ export default function LibraryPage() {
               </span>
               <div style={{
                 width: "34px", height: "34px", borderRadius: "9px",
-                background: "rgba(232,89,10,0.12)",
+                background: "rgba(247,55,79,0.12)",
                 display: "flex", alignItems: "center", justifyContent: "center",
               }}>
                 <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
                   <path d="M5 3h8l4 4v11a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"
-                    stroke="#E8590A" strokeWidth="1.5" strokeLinejoin="round"/>
-                  <path d="M13 3v4h4" stroke="#E8590A" strokeWidth="1.5" strokeLinejoin="round"/>
-                  <path d="M7 10h6M7 13h4" stroke="#E8590A" strokeWidth="1.4" strokeLinecap="round"/>
+                    stroke="#F7374F" strokeWidth="1.5" strokeLinejoin="round"/>
+                  <path d="M13 3v4h4" stroke="#F7374F" strokeWidth="1.5" strokeLinejoin="round"/>
+                  <path d="M7 10h6M7 13h4" stroke="#F7374F" strokeWidth="1.4" strokeLinecap="round"/>
                 </svg>
               </div>
             </div>
@@ -309,10 +309,10 @@ export default function LibraryPage() {
             <div>
               <div style={{
                 width: "42px", height: "42px", borderRadius: "12px",
-                background: "#E8590A",
+                background: "#F7374F",
                 display: "flex", alignItems: "center", justifyContent: "center",
                 marginBottom: "16px",
-                boxShadow: "0 0 24px rgba(232,89,10,0.45)",
+                boxShadow: "0 0 24px rgba(247,55,79,0.45)",
               }}>
                 <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
                   <path d="M10 4v12M4 10h12" stroke="white" strokeWidth="2.2" strokeLinecap="round"/>
@@ -343,13 +343,13 @@ export default function LibraryPage() {
               marginTop: "18px",
               display: "flex", alignItems: "center", gap: "6px",
               fontSize: "12px", fontWeight: 700,
-              color: "#E8590A",
+              color: "#F7374F",
               fontFamily: "var(--font-inter), sans-serif",
               letterSpacing: "0.3px",
             }}>
               Start now
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                <path d="M3 7h8M7.5 3.5l4 3.5-4 3.5" stroke="#E8590A" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M3 7h8M7.5 3.5l4 3.5-4 3.5" stroke="#F7374F" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
             </div>
           </div>

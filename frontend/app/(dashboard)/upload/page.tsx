@@ -90,8 +90,8 @@ export default function UploadPage() {
             onClick={() => setMethod(m.id)}
             style={{
               borderRadius: "14px", padding: "16px", textAlign: "left",
-              border: `1px solid ${method === m.id ? "rgba(232,89,10,0.5)" : "rgba(255,255,255,0.08)"}`,
-              background: method === m.id ? "rgba(232,89,10,0.1)" : "rgba(255,255,255,0.03)",
+              border: `1px solid ${method === m.id ? "rgba(247,55,79,0.5)" : "rgba(255,255,255,0.08)"}`,
+              background: method === m.id ? "rgba(247,55,79,0.1)" : "rgba(255,255,255,0.03)",
               cursor: "pointer", transition: "all 0.15s",
             }}
           >
@@ -125,10 +125,10 @@ export default function UploadPage() {
         disabled={loading}
         style={{
           width: "100%", padding: "14px", borderRadius: "14px", marginTop: "16px",
-          background: loading ? "rgba(232,89,10,0.5)" : "#E8590A",
+          background: loading ? "rgba(247,55,79,0.5)" : "#F7374F",
           color: "#fff", fontSize: "14px", fontWeight: 700, border: "none",
           cursor: loading ? "not-allowed" : "pointer", transition: "all 0.2s",
-          boxShadow: loading ? "none" : "0 0 20px rgba(232,89,10,0.3)",
+          boxShadow: loading ? "none" : "0 0 20px rgba(247,55,79,0.3)",
         }}
       >
         {loading ? "Uploading & processing..." : "Generate summary →"}

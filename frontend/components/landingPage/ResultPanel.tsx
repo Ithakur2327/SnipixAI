@@ -121,7 +121,7 @@ export default function ResultPanel({ result, outputType, loading }: Props) {
               Analyzing with RAG pipeline...
             </span>
             <span
-              style={{ fontSize: "11px", color: "#E8590A", fontWeight: 600 }}
+              style={{ fontSize: "11px", color: "#F7374F", fontWeight: 600 }}
             >
               {progress}%
             </span>
@@ -138,7 +138,7 @@ export default function ResultPanel({ result, outputType, loading }: Props) {
               style={{
                 height: "100%",
                 width: `${progress}%`,
-                background: "linear-gradient(90deg, #E8590A, #FF7A2F)",
+                background: "linear-gradient(90deg, #F7374F, #F7374F)",
                 borderRadius: "2px",
                 transition: "width 0.15s ease",
               }}
@@ -306,11 +306,11 @@ export default function ResultPanel({ result, outputType, loading }: Props) {
                   fontWeight: activeTab === tab ? 600 : 400,
                   background:
                     activeTab === tab
-                      ? "rgba(232,89,10,0.2)"
+                      ? "rgba(247,55,79,0.2)"
                       : "transparent",
                   color:
                     activeTab === tab
-                      ? "#E8590A"
+                      ? "#F7374F"
                       : "rgba(255,255,255,0.3)",
                   transition: "all 0.15s",
                   whiteSpace: "nowrap",
@@ -351,8 +351,8 @@ export default function ResultPanel({ result, outputType, loading }: Props) {
                     width: "20px",
                     height: "20px",
                     borderRadius: "6px",
-                    background: "rgba(232,89,10,0.15)",
-                    color: "#E8590A",
+                    background: "rgba(247,55,79,0.15)",
+                    color: "#F7374F",
                     fontSize: "9px",
                     fontWeight: 700,
                     display: "flex",

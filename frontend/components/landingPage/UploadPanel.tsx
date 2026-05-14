@@ -254,10 +254,10 @@ export default function UploadPanel({ onGenerate }: Props) {
         onClick={handleSubmit}
         style={{
           width: "100%", padding: "13px", borderRadius: "12px",
-          border: "none", background: "#E8590A",
+          border: "none", background: "#F7374F",
           color: "white", fontSize: "14px", fontWeight: 700,
           cursor: "pointer",
-          boxShadow: "0 0 24px rgba(232,89,10,0.35)",
+          boxShadow: "0 0 24px rgba(247,55,79,0.35)",
           transition: "all 0.2s", letterSpacing: "-0.2px",
         }}
         onMouseEnter={(e) => {

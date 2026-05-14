@@ -316,7 +316,7 @@ export default function Navbar() {
               fontSize: "20px", fontWeight: 700, color: "#fff",
               letterSpacing: "1.5px", lineHeight: 1,
             }}>
-              Snipix<span style={{ color: "#E8590A" }}>AI</span>
+              Snipix<span style={{ color: "#F7374F" }}>AI</span>
             </span>
           </button>
 
