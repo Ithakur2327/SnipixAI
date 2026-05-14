@@ -249,11 +249,11 @@ export default function HeroSection() {
           }}>{" "}Instantly.</span>
         </h1>
 
-        <div className="snx-divider" style={{ width: "30px", height: "2px", background: "#F7374F", margin: "12px auto 10px", borderRadius: "2px" }} />
+        <div className="snx-divider" style={{ width: "30px", height: "2px", background: "#F7374F", margin: "18px auto 16px", borderRadius: "2px" }} />
 
         <p className="snx-sub" style={{
           fontSize: "clamp(11px, 1.2vw, 14px)", color: "rgba(255,255,255,0.32)",
-          maxWidth: "520px", margin: "0 auto 16px", lineHeight: 1.8,
+          maxWidth: "520px", margin: "0 auto 28px", lineHeight: 1.8,
         }}>
           Drop a{" "}
           <span style={{ color: "rgba(255,255,255,0.6)", fontWeight: 500, background: "rgba(255,255,255,0.05)", padding: "1px 7px", borderRadius: "4px", fontSize: "11px" }}>
@@ -272,8 +272,8 @@ export default function HeroSection() {
           display: "flex",
           flexDirection: "column",
           justifyContent: "flex-end",   /* ← key: pushes content to bottom */
-          gap: "6px",
-          padding: `0 clamp(12px,4vw,80px) clamp(8px,1.5vh,20px)`,
+          gap: "8px",
+          padding: `0 clamp(12px,4vw,80px) clamp(12px,2vh,32px)`,
           /* never let this area itself scroll */
           overflow: "hidden",
           minHeight: 0,
