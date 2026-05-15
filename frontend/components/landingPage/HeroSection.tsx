@@ -140,14 +140,10 @@ export default function HeroSection() {
 
   return (
     <section style={{
-      /* 85dvh leaves more space for taskbar and system UI */
-      height: "85dvh",
-      minHeight: "85dvh",
+      minHeight: "calc(100dvh - 64px)",
       display: "flex",
       flexDirection: "column",
       background: "#000000",
-      /* Prevent the section itself from scrolling — content fits inside */
-      overflow: "hidden",
     }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@700&display=swap');
@@ -206,12 +202,14 @@ export default function HeroSection() {
 
         /* ── RESPONSIVE ─────────────────────────────────────── */
         @media (max-width: 768px) {
-          .snx-hero-head { padding: 14px 16px 10px !important; }
-          .snx-bar-wrap  { padding: 0 12px env(safe-area-inset-bottom, 16px) !important; padding-bottom: max(16px, env(safe-area-inset-bottom, 16px)) !important; }
+          .snx-hero-head { padding: 28px 16px 10px !important; }
+          .snx-bar-wrap  { padding: 0 12px 16px !important; }
           .snx-h1 { font-size: clamp(16px, 5vw, 24px) !important; white-space: normal !important; text-align: center; }
-          .snx-out-row { flex-wrap: wrap; gap: 6px !important; }
-          .snx-output-pill { font-size: 10px; padding: 4px 10px; }
-          .snx-divider { margin: 10px auto 10px !important; }
+          .snx-sub { font-size: clamp(13px, 3.5vw, 15px) !important; margin-bottom: 20px !important; }
+          .snx-out-row { flex-wrap: nowrap !important; overflow-x: auto; gap: 6px !important; padding-bottom: 2px; scrollbar-width: none; -ms-overflow-style: none; justify-content: flex-start !important; }
+          .snx-out-row::-webkit-scrollbar { display: none; }
+          .snx-output-pill { font-size: 10px; padding: 4px 10px; flex-shrink: 0; }
+          .snx-divider { margin: 8px auto 8px !important; }
         }
         @media (max-width: 480px) {
           .snx-textarea { font-size: 13px !important; }
@@ -227,14 +225,14 @@ export default function HeroSection() {
       {/* ─── HEADING ─────────────────────────────────────────── */}
       <div className="snx-hero-head" style={{
         textAlign: "center",
-        padding: "clamp(10px,2vw,20px) 24px clamp(8px,1vw,16px)",
+        padding: "clamp(24px,5vw,56px) 24px clamp(8px,1vw,16px)",
         flexShrink: 0,
       }}>
         <h1 className="snx-h1" style={{
           fontFamily: "'Josefin Sans','Arial Black',sans-serif",
           fontSize: "clamp(18px, 2.4vw, 32px)",
           fontWeight: 700, lineHeight: 1.1, letterSpacing: "0.5px",
-          margin: "0 0 4px", textTransform: "uppercase", whiteSpace: "nowrap",
+          margin: "0 0 4px", textTransform: "uppercase",
         }}>
           <span style={{ color: "#FFFFFF" }}>Summarize </span>
           <span style={{ color: "#F7374F", position: "relative", display: "inline-block" }}>
@@ -254,7 +252,7 @@ export default function HeroSection() {
         <div className="snx-divider" style={{ width: "30px", height: "2px", background: "#F7374F", margin: "18px auto 16px", borderRadius: "2px" }} />
 
         <p className="snx-sub" style={{
-          fontSize: "clamp(11px, 1.2vw, 14px)", color: "rgba(255,255,255,0.32)",
+          fontSize: "clamp(13px, 1.4vw, 15px)", color: "rgba(255,255,255,0.32)",
           maxWidth: "520px", margin: "0 auto 28px", lineHeight: 1.8,
         }}>
           Drop a{" "}
@@ -273,11 +271,9 @@ export default function HeroSection() {
           flex: 1,
           display: "flex",
           flexDirection: "column",
-          justifyContent: "flex-end",   /* ← key: pushes content to bottom */
+          justifyContent: "flex-end",
           gap: "8px",
           padding: `0 clamp(12px,4vw,80px) clamp(12px,2vh,32px)`,
-          /* never let this area itself scroll */
-          overflow: "hidden",
           minHeight: 0,
         }}
       >
@@ -345,21 +341,24 @@ export default function HeroSection() {
               </div>
             )}
 
-            {/* Textarea — 3 rows */}
-            {(inputMode === "text" || inputMode === "file") && (
+            {/* Textarea — hidden when file is selected */}
+            {inputMode !== "file" && (
               <textarea ref={textareaRef} className="snx-textarea"
-                value={inputMode === "file" ? "" : text}
+                value={inputMode === "url" ? "" : text}
                 onChange={(e) => setText(e.target.value)}
                 onKeyDown={onKeyDown}
-                placeholder={inputMode === "file" ? "File selected — choose output type and send ↑" : "Paste your content here, or use + to attach a file or URL…"}
-                readOnly={inputMode === "file"}
+                placeholder={inputMode === "url" ? "" : "Paste your content here, or use + to attach a file or URL…"}
+                readOnly={inputMode === "url"}
                 rows={3}
                 style={{
                   width: "100%", background: "transparent", border: "none", outline: "none", resize: "none",
-                  color: inputMode === "file" ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.8)",
+                  color: "rgba(255,255,255,0.8)",
                   fontSize: "14px", lineHeight: 1.65, padding: "14px 16px",
                   fontFamily: "var(--font-inter), sans-serif",
                 }}/>
+            )}
+            {inputMode === "file" && (
+              <div style={{ padding: "14px 16px", minHeight: "72px" }} />
             )}
 
             {/* Bottom bar */}

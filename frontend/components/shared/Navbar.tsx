@@ -50,6 +50,8 @@ export default function Navbar() {
   const [currentHash, setCurrentHash] = useState("");
   const [scrolled,    setScrolled]    = useState(false);
   const [dropOpen,    setDropOpen]    = useState(false);
+  const [isMobile,    setIsMobile]    = useState(false);
+  const [isTablet,    setIsTablet]    = useState(false);
 
   useEffect(() => {
     const updateState = () => {
@@ -90,6 +92,16 @@ export default function Navbar() {
     window.addEventListener("click", fn);
     return () => window.removeEventListener("click", fn);
   }, [dropOpen]);
+
+  useEffect(() => {
+    const checkSize = () => {
+      setIsMobile(window.innerWidth <= 680);
+      setIsTablet(window.innerWidth > 680 && window.innerWidth <= 980);
+    };
+    checkSize();
+    window.addEventListener("resize", checkSize);
+    return () => window.removeEventListener("resize", checkSize);
+  }, []);
 
   const handleNav = (link: (typeof LINKS)[0]) => {
     if (link.scroll) {
@@ -179,10 +191,10 @@ export default function Navbar() {
         .snx-brand { background: none; border: none; cursor: pointer; padding: 0; outline: none; transition: opacity 0.18s ease; }
         .snx-brand:hover { opacity: 0.75; }
 
-        /* ── Avatar — circle style like image, F7374F theme ── */
+        /* ── Avatar — rounded square, F7374F theme ── */
         .snx-avatar {
-          display: inline-flex; align-items: center; gap: 8px;
-          padding: 4px 10px 4px 4px; border-radius: 100px;
+          display: inline-flex; align-items: center; gap: 6px;
+          padding: 5px 8px 5px 5px; border-radius: 10px;
           background: rgba(255,255,255,0.06);
           border: 1px solid rgba(255,255,255,0.1);
           cursor: pointer; outline: none;
@@ -195,9 +207,9 @@ export default function Navbar() {
         }
         .snx-avatar:active { transform: scale(0.97); }
 
-        /* Circle avatar icon — matches the image */
+        /* Rounded-square avatar icon */
         .snx-avatar-icon {
-          width: 30px; height: 30px; border-radius: 50%;
+          width: 28px; height: 28px; border-radius: 7px;
           background: rgba(255,255,255,0.1);
           border: 1px solid rgba(255,255,255,0.15);
           display: flex; align-items: center; justify-content: center;
@@ -208,12 +220,6 @@ export default function Navbar() {
         .snx-avatar:hover .snx-avatar-icon {
           background: rgba(247,55,79,0.18);
           border-color: rgba(247,55,79,0.4);
-        }
-
-        .snx-avatar-name {
-          font-size: 12.5px; font-weight: 500; color: rgba(255,255,255,0.8);
-          font-family: var(--font-inter), sans-serif;
-          max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
         }
         .snx-avatar-chevron {
           margin-left: 2px; color: rgba(255,255,255,0.3);
@@ -262,20 +268,9 @@ export default function Navbar() {
         }
 
         @media (max-width: 980px) {
-          .snx-nav { height: auto !important; min-height: 64px; }
-          .snx-nav-inner { padding: 0 18px !important; }
-          .snx-pill-container {
-            position: relative !important;
-            left: auto !important; top: auto !important;
-            transform: none !important;
-            width: auto !important;
-            margin: 0 auto !important;
-            flex-wrap: wrap;
-            justify-content: center;
-            padding: 6px 8px !important;
-            gap: 6px !important;
-          }
-          .snx-pill { padding: 8px 10px; font-size: 12px; }
+          .snx-nav { height: 64px !important; }
+          .snx-nav-inner { padding: 0 18px !important; height: 64px !important; flex-direction: row !important; align-items: center !important; }
+          .snx-pill { padding: 7px 9px; font-size: 12px; }
           .snx-pill-wrap { margin: 0 1px; }
           .snx-cta { height: 34px; padding: 0 16px; font-size: 12px; }
           .snx-avatar { padding: 4px 8px 4px 4px; }
@@ -285,17 +280,16 @@ export default function Navbar() {
         }
 
         @media (max-width: 680px) {
-          .snx-nav { padding: 10px 0 !important; }
-          .snx-nav-inner {
-            flex-direction: column !important;
-            align-items: stretch !important;
-            justify-content: center !important;
-            gap: 10px !important;
-          }
-          .snx-brand { align-self: center; }
-          .snx-pill-container { background: rgba(255,255,255,0.04) !important; width: 100% !important; }
-          .snx-right-wrap { width: 100%; justify-content: space-between; }
-          .snx-dropdown { right: 0; left: auto; min-width: calc(100% - 24px); }
+          .snx-nav { height: 56px !important; padding: 0 !important; }
+          .snx-nav-inner { height: 56px !important; flex-direction: row !important; align-items: center !important; justify-content: space-between !important; padding: 0 16px !important; }
+          .snx-pill-container { display: none !important; }
+          .snx-brand span { font-size: 18px !important; }
+          .snx-avatar-name { display: none !important; }
+          .snx-dropdown { right: 0; left: auto; min-width: 200px; }
+        }
+
+        @media (max-width: 400px) {
+          .snx-nav-inner { padding: 0 12px !important; }
         }
       `}</style>
 
@@ -314,13 +308,18 @@ export default function Navbar() {
         }}
       >
         <div className="snx-nav-inner" style={{
-          maxWidth: "1280px", margin: "0 auto", height: "64px",
-          padding: "0 32px", display: "flex", alignItems: "center",
-          justifyContent: "space-between", position: "relative",
+          maxWidth: "1280px", margin: "0 auto",
+          height: "64px",
+          padding: isMobile ? "0 14px" : isTablet ? "0 18px" : "0 32px",
+          display: "flex",
+          alignItems: "center",
+          flexDirection: "row",
+          justifyContent: "space-between",
+          position: "relative",
         }}>
 
           {/* LOGO */}
-          <button className="snx-brand" onClick={() => handleNav(LINKS[0])}>
+          <button className="snx-brand" onClick={() => handleNav(LINKS[0])} style={{ flexShrink: 0 }}>
             <span style={{
               fontFamily: "'Hachen', var(--font-raleway), sans-serif",
               fontSize: "20px", fontWeight: 700, color: "#fff",
@@ -331,14 +330,24 @@ export default function Navbar() {
           </button>
 
           {/* CENTER PILL NAV */}
-          <div className="snx-pill-container" style={{
-            position: "absolute", left: "50%", top: "50%",
-            transform: "translate(-50%,-50%)",
-            display: "flex", alignItems: "center", gap: "2px",
-            background: "rgba(255,255,255,0.05)",
-            border: "1px solid rgba(255,255,255,0.08)",
-            borderRadius: "13px", padding: "4px 5px",
-          }}>
+          <div className="snx-pill-container" style={
+            isMobile ? {
+              position: "absolute", left: "50%", top: "50%",
+              transform: "translate(-50%,-50%)",
+              display: "flex", alignItems: "center", gap: "2px",
+              background: "rgba(255,255,255,0.05)",
+              border: "1px solid rgba(255,255,255,0.08)",
+              borderRadius: "13px", padding: "3px 4px",
+              whiteSpace: "nowrap",
+            } : {
+              position: "absolute", left: "50%", top: "50%",
+              transform: "translate(-50%,-50%)",
+              display: "flex", alignItems: "center", gap: "2px",
+              background: "rgba(255,255,255,0.05)",
+              border: "1px solid rgba(255,255,255,0.08)",
+              borderRadius: "13px", padding: "4px 5px",
+            }
+          }>
             {LINKS.map((link, i) => (
               <span key={link.label} style={{ display: "contents" }}>
                 {i > 0 && (
@@ -362,7 +371,7 @@ export default function Navbar() {
           </div>
 
           {/* RIGHT SIDE */}
-          <div className="snx-right-wrap" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <div className="snx-right-wrap" style={{ display: "flex", alignItems: "center", gap: "10px", flexShrink: 0 }}>
             {isAuthenticated && user ? (
               <div style={{ position: "relative" }}>
                 <button
@@ -370,14 +379,13 @@ export default function Navbar() {
                   onClick={(e) => { e.stopPropagation(); setDropOpen((v) => !v); }}
                   title={user.name}
                 >
-                  {/* Circle avatar — person icon style matching screenshot */}
+                  {/* Rounded-square avatar icon */}
                   <span className="snx-avatar-icon">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
                       <circle cx="12" cy="8" r="4" stroke="rgba(255,255,255,0.75)" strokeWidth="1.8"/>
                       <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="rgba(255,255,255,0.75)" strokeWidth="1.8" strokeLinecap="round"/>
                     </svg>
                   </span>
-                  <span className="snx-avatar-name">{user.name.split(" ")[0]}</span>
                   <svg className={`snx-avatar-chevron${dropOpen ? " open" : ""}`}
                     width="12" height="12" viewBox="0 0 12 12" fill="none">
                     <path d="M2.5 4.5L6 8l3.5-3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
@@ -390,7 +398,7 @@ export default function Navbar() {
                     <div className="snx-drop-header">
                       <div style={{ display: "flex", alignItems: "center", gap: "9px" }}>
                         <div style={{
-                          width: "34px", height: "34px", borderRadius: "50%",
+                          width: "34px", height: "34px", borderRadius: "9px",
                           background: "rgba(255,255,255,0.08)",
                           border: "1px solid rgba(247,55,79,0.3)",
                           display: "flex", alignItems: "center", justifyContent: "center",
@@ -417,16 +425,14 @@ export default function Navbar() {
                       </div>
                     </div>
 
-                    <button className="snx-drop-item" onClick={() => { router.push("/dashboard"); setDropOpen(false); }}>
+                    <button className="snx-drop-item" onClick={() => { handleNav(LINKS[0]); setDropOpen(false); }}>
                       <span className="item-icon">
-                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                          <rect x="1" y="1" width="5" height="5" rx="1.2" stroke="currentColor" strokeWidth="1.3"/>
-                          <rect x="8" y="1" width="5" height="5" rx="1.2" stroke="currentColor" strokeWidth="1.3"/>
-                          <rect x="1" y="8" width="5" height="5" rx="1.2" stroke="currentColor" strokeWidth="1.3"/>
-                          <rect x="8" y="8" width="5" height="5" rx="1.2" stroke="currentColor" strokeWidth="1.3"/>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                          <path d="M3 10.5L12 3l9 7.5V21a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1V10.5Z"
+                            stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
                         </svg>
                       </span>
-                      Dashboard
+                      Home
                     </button>
 
                     <button className="snx-drop-item" onClick={() => { router.push("/library"); setDropOpen(false); }}>
