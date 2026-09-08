@@ -3,7 +3,7 @@ from typing import AsyncGenerator
 
 from app.core.config import get_settings
 from app.core.sse import sse_event
-from app.services import document_service, embedder, llm, message_service, vector_store
+from app.services import context_builder, document_service, embedder, llm, message_service, vector_store
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +68,9 @@ async def stream_chat_response(user_id: str, document_id: str, user_message: str
 
     sources = [{"chunkId": m["chunk_id"], "text": m["text"], "score": m["score"]} for m in raw_matches]
 
-    condensed_context = doc.get("condensedContext") or doc.get("rawText") or ""
+    condensed_context = doc.get("condensedContext")
+    if not condensed_context:
+        condensed_context = context_builder.get_fallback_context(doc.get("rawText") or "")
     document_block = _build_document_block(doc["title"], condensed_context, raw_matches)
 
     messages = [{"role": "system", "content": f"{SYSTEM_PROMPT}\n\n{document_block}"}]

@@ -3,7 +3,7 @@ import re
 import uuid
 
 from app.core.exceptions import BadRequestError
-from app.services import document_service, llm, message_service
+from app.services import context_builder, document_service, llm, message_service
 
 QUIZ_INSTRUCTIONS = """Return ONLY a raw JSON object, no markdown fences, no commentary, matching exactly this shape:
 {
@@ -108,7 +108,9 @@ async def generate_exam(
     if use_document:
         if doc["status"] != "ready":
             raise BadRequestError("This document is still being processed. Please wait a moment.")
-        document_block = doc.get("condensedContext") or doc.get("rawText") or ""
+        document_block = doc.get("condensedContext")
+        if not document_block:
+            document_block = context_builder.get_fallback_context(doc.get("rawText") or "")
         if not resolved_topic:
             resolved_topic = doc["title"]
 

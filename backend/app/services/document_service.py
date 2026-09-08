@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 from datetime import datetime, timezone
@@ -161,7 +162,10 @@ async def process_document(document_id: str) -> None:
                 chunk["vector"] = vector
             vector_store.upsert_chunks(chunks)
 
-        condensed = await context_builder.build_document_context(raw_text)
+        settings = get_settings()
+        immediate_context = (
+            raw_text if len(raw_text) <= settings.direct_context_char_budget else None
+        )
 
         await db.documents.update_one(
             {"_id": object_id},
@@ -170,14 +174,18 @@ async def process_document(document_id: str) -> None:
                     "rawText": raw_text,
                     "wordCount": word_count,
                     "pageCount": page_count,
-                    "condensedContext": condensed,
+                    "condensedContext": immediate_context,
+                    "condensedReady": immediate_context is not None,
                     "status": "ready",
                     "errorMessage": None,
                     "updatedAt": datetime.now(timezone.utc),
                 }
             },
         )
-        logger.info("[document_service] Document %s processed successfully", document_id)
+        logger.info("[document_service] Document %s ready for chat", document_id)
+
+        if immediate_context is None:
+            asyncio.create_task(_condense_in_background(object_id, raw_text))
 
     except Exception as exc:
         logger.error("[document_service] Failed to process document %s: %s", document_id, exc)
@@ -191,6 +199,19 @@ async def process_document(document_id: str) -> None:
                 }
             },
         )
+
+
+async def _condense_in_background(object_id, raw_text: str) -> None:
+    db = get_database()
+    try:
+        condensed = await context_builder.build_document_context(raw_text)
+        await db.documents.update_one(
+            {"_id": object_id},
+            {"$set": {"condensedContext": condensed, "condensedReady": True, "updatedAt": datetime.now(timezone.utc)}},
+        )
+        logger.info("[document_service] Condensation ready for %s", object_id)
+    except Exception as exc:
+        logger.error("[document_service] Background condensation failed for %s: %s", object_id, exc)
 
 
 def chunk_document(raw_text: str, document_id: str, user_id: str) -> list[dict]:

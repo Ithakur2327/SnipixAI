@@ -67,3 +67,15 @@ async def build_document_context(raw_text: str) -> str:
         combined = combined[: settings.direct_context_char_budget]
 
     return combined
+
+
+def get_fallback_context(raw_text: str) -> str:
+    settings = get_settings()
+    cleaned = (raw_text or "").strip()
+    if len(cleaned) <= settings.direct_context_char_budget:
+        return cleaned
+
+    half = settings.direct_context_char_budget // 2
+    head = cleaned[:half]
+    tail = cleaned[-half:]
+    return f"{head}\n\n[...middle of document omitted while full analysis finishes...]\n\n{tail}"
