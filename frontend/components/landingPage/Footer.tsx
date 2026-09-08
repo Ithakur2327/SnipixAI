@@ -25,12 +25,10 @@ export default function Footer() {
           justifyContent: "space-between",
         }}
       >
-        {/* Brand */}
         <span style={{ fontSize: "14px", fontWeight: 700, color: "#FFFFFF" }}>
           Snipix<span style={{ color: "#E8590A" }}>AI</span>
         </span>
 
-        {/* Copyright */}
         <p style={{ fontSize: "12px", color: "rgba(255,255,255,0.2)" }}>
           © 2025 SnipixAI. All rights reserved.
         </p>

@@ -5,16 +5,8 @@
 @tailwind utilities;
 
 :root {
-  --orange: #E8590A;
-  --orange-pale: #FFF3E0;
-  --gray-bg: #000000;
-  --gray-dark: #0C0C0C;
-  --gray-mid: #6E6E6E;
-  --gray-border: #222222;
   --font-inter: 'Inter', 'Segoe UI', sans-serif;
-  --font-bebas: 'Segoe UI', sans-serif;
   --font-raleway: 'Raleway', sans-serif;
-  --font-space: 'Segoe UI', sans-serif;
 }
 
 * {
@@ -29,56 +21,7 @@ html {
 
 body {
   font-family: 'Inter', 'Segoe UI', sans-serif;
-  
-  /* Dark theme background */
   background-color: #000000;
-
   color: #E0E0E0;
   -webkit-font-smoothing: antialiased;
-}
-
-/* ✅ add wrapper instead of body bg */
-.main-bg {
-  background-color: #000000;
-  min-height: 100vh;
-}
-
-.btn-primary {
-  background: #E8590A;
-  color: white;
-  border: none;
-  padding: 12px 28px;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  display: inline-block;
-  text-decoration: none;
-  transition: background 0.2s;
-}
-.btn-primary:hover { background: #FF6B1A; }
-
-.btn-ghost {
-  background: #D0CFCF;
-  color: #1A1A1A;
-  border: none;
-  padding: 12px 28px;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  display: inline-block;
-  text-decoration: none;
-  transition: background 0.2s;
-}
-.btn-ghost:hover { background: #b8b7b7; }
-
-.display-watermark {
-  font-size: clamp(80px, 15vw, 160px);
-  font-weight: 900;
-  color: rgba(255, 255, 255, 0.4);
-  letter-spacing: -4px;
-  line-height: 1;
-  pointer-events: none;
-  user-select: none;
 }

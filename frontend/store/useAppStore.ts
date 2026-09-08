@@ -1,14 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-
-interface User {
-  _id: string;
-  name: string;
-  email: string;
-  plan: "free" | "pro";
-  usageCount: number;
-  usageLimit: number;
-}
+import type { User } from "@/types";
 
 interface AppState {
   user: User | null;
@@ -21,12 +13,11 @@ interface AppState {
 export const useAppStore = create<AppState>()(
   persist(
     (set) => ({
-      user:            null,
-      token:           null,
+      user: null,
+      token: null,
       isAuthenticated: false,
 
       setAuth: (user, token) => {
-        // Keep direct key in sync so axios interceptor always finds it
         if (typeof window !== "undefined") {
           localStorage.setItem("snipix_token", token);
         }
@@ -44,8 +35,8 @@ export const useAppStore = create<AppState>()(
     {
       name: "snipix-auth",
       partialize: (state) => ({
-        user:            state.user,
-        token:           state.token,
+        user: state.user,
+        token: state.token,
         isAuthenticated: state.isAuthenticated,
       }),
     }

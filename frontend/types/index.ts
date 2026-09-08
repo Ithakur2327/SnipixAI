@@ -2,57 +2,77 @@ export type SourceType =
   | "pdf" | "docx" | "ppt" | "txt"
   | "url" | "image" | "raw_text";
 
-export type DocumentStatus =
-  | "pending" | "extracting" | "ready" | "failed";
-
-export type OutputType =
-  | "tldr" | "bullets" | "key_insights"
-  | "action_points" | "section_summary";
+export type DocumentStatus = "processing" | "ready" | "error";
 
 export type Plan = "free" | "pro";
 
 export interface User {
-  _id: string;
+  id: string;
   name: string;
   email: string;
   plan: Plan;
-  usageCount: number;
-  usageLimit: number;
+  avatarUrl: string | null;
+  createdAt: string;
 }
 
 export interface Document {
-  _id: string;
+  id: string;
   title: string;
   sourceType: SourceType;
-  sourceUrl: string | null;
   status: DocumentStatus;
-  errorMessage?: string | null;
-  wordCount: number;
+  wordCount: number | null;
   pageCount: number | null;
+  messageCount: number;
+  errorMessage?: string | null;
+  fileUrl?: string | null;
+  mimeType?: string | null;
   createdAt: string;
-  summaryCount: number;
+  updatedAt: string;
 }
 
-export interface Summary {
-  summaryId: string;
-  documentId: string;
-  outputType: OutputType;
-  content: string | string[];
-  model: string;
-  processingTimeMs: number;
-}
-
-export interface ChatSource {
+export interface MessageSource {
   chunkId: string;
-  chunkText: string;
+  text: string;
   score: number;
 }
 
+export type ExamType = "quiz" | "subjective";
+
+export interface ExamQuestion {
+  id: string;
+  question: string;
+  options?: string[];
+  correctIndex?: number;
+  explanation?: string;
+  answer?: string;
+}
+
+export interface ExamScore {
+  correct: number;
+  total: number;
+}
+
+export interface ExamData {
+  examType: ExamType;
+  topic: string;
+  questions: ExamQuestion[];
+  userAnswers: Record<string, number>;
+  submitted: boolean;
+  revealed: Record<string, boolean>;
+  score: ExamScore | null;
+}
+
+export type MessageType = "text" | "exam";
+export type MessageRole = "user" | "assistant";
+
 export interface ChatMessage {
-  _id: string;
-  role: "user" | "assistant";
-  content: string;
-  sources: ChatSource[];
+  id: string;
+  documentId: string;
+  role: MessageRole;
+  type: MessageType;
+  content: string | null;
+  sources: MessageSource[];
+  exam: ExamData | null;
   createdAt: string;
 }
 

@@ -2,7 +2,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import api from "@/lib/api";
+import { authAPI, getApiErrorMessage } from "@/lib/api";
 import { useAppStore } from "@/store/useAppStore";
 
 export default function LoginPage() {
@@ -20,11 +20,11 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const { data } = await api.post("/auth/login", { email, password });
+      const { data } = await authAPI.login(email, password);
       setAuth(data.data.user, data.data.token);
       router.push("/");
-    } catch (err: any) {
-      setError(err?.message || "Invalid email or password");
+    } catch (err) {
+      setError(getApiErrorMessage(err, "Invalid email or password"));
     } finally {
       setLoading(false);
     }

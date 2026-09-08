@@ -23,7 +23,7 @@ export default function UrlInput({ value, onChange }: Props) {
         onBlur={(e) => (e.target.style.borderColor = "rgba(255,255,255,0.08)")}
       />
       <p style={{ fontSize: "11px", color: "rgba(255,255,255,0.25)", marginTop: "8px" }}>
-        We'll extract the page content automatically using Puppeteer.
+        We&apos;ll extract the page content automatically.
       </p>
     </div>
   );

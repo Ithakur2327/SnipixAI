@@ -2,7 +2,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import api from "@/lib/api";
+import { authAPI, getApiErrorMessage } from "@/lib/api";
 import { useAppStore } from "@/store/useAppStore";
 
 export default function SignupPage() {
@@ -31,11 +31,11 @@ export default function SignupPage() {
 
     setLoading(true);
     try {
-      const { data } = await api.post("/auth/register", { name, email, password });
+      const { data } = await authAPI.register(name, email, password);
       setAuth(data.data.user, data.data.token);
       router.push("/");
-    } catch (err: any) {
-      setError(err?.message || "Registration failed. Please try again.");
+    } catch (err) {
+      setError(getApiErrorMessage(err, "Registration failed. Please try again."));
     } finally {
       setLoading(false);
     }

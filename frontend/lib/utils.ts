@@ -5,25 +5,22 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function formatDate(iso: string): string {
-  const d = new Date(iso);
-  const diff = Date.now() - d.getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 60) return `${mins}m ago`;
-  if (mins < 1440) return `${Math.floor(mins / 60)}h ago`;
-  return `${Math.floor(mins / 1440)}d ago`;
-}
-
 export function formatWords(n: number): string {
   return n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
 }
 
-export const SOURCE_COLORS: Record<string, string> = {
-  pdf:      "bg-orange-pale text-orange-dark border-orange/30",
-  docx:     "bg-blue-50   text-blue-700   border-blue-200",
-  ppt:      "bg-purple-50 text-purple-700 border-purple-200",
-  url:      "bg-green-50  text-green-700  border-green-200",
-  image:    "bg-pink-50   text-pink-700   border-pink-200",
-  txt:      "bg-gray-100  text-gray-700   border-gray-200",
-  raw_text: "bg-gray-100  text-gray-700   border-gray-200",
+export interface DocumentTypeMeta {
+  label: string;
+  color: string;
+  bg: string;
+}
+
+export const DOCUMENT_TYPE_META: Record<string, DocumentTypeMeta> = {
+  pdf: { label: "PDF", color: "#F7374F", bg: "rgba(247,55,79,0.12)" },
+  docx: { label: "DOC", color: "#60A5FA", bg: "rgba(96,165,250,0.12)" },
+  ppt: { label: "PPT", color: "#A78BFA", bg: "rgba(167,139,250,0.12)" },
+  url: { label: "URL", color: "#34D399", bg: "rgba(52,211,153,0.12)" },
+  image: { label: "IMG", color: "#F472B6", bg: "rgba(244,114,182,0.12)" },
+  txt: { label: "TXT", color: "#94A3B8", bg: "rgba(148,163,184,0.12)" },
+  raw_text: { label: "TXT", color: "#94A3B8", bg: "rgba(148,163,184,0.12)" },
 };

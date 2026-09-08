@@ -175,7 +175,6 @@ function TreeNode({ feature, index, visible, isLast }: {
       transition: `opacity 0.5s cubic-bezier(0.22,1,0.36,1) ${index * 0.08}s,
                    transform 0.5s cubic-bezier(0.22,1,0.36,1) ${index * 0.08}s`,
     }}>
-      {/* spine */}
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", width: "28px", flexShrink: 0 }}>
         {index > 0 && <div style={{ width: "1px", height: "24px", background: "rgba(247,55,79,0.12)", flexShrink: 0 }} />}
         <div style={{
@@ -188,7 +187,6 @@ function TreeNode({ feature, index, visible, isLast }: {
         {!isLast && <div style={{ flex: 1, width: "1px", minHeight: "28px", background: "rgba(247,55,79,0.08)" }} />}
       </div>
 
-      {/* content */}
       <div style={{ flex: 1, paddingLeft: "22px", paddingBottom: isLast ? 0 : "32px" }}>
         <button
           onClick={() => setOpen(v => !v)}
@@ -235,7 +233,6 @@ function TreeNode({ feature, index, visible, isLast }: {
           </svg>
         </button>
 
-        {/* children */}
         <div style={{
           overflow: "hidden",
           maxHeight: open ? `${feature.children.length * 44}px` : "0",
@@ -299,7 +296,6 @@ export default function AboutSection() {
         @media (max-width: 420px) { .snxa-section { padding: 44px 14px !important; } }
       `}</style>
 
-      {/* ══ ABOUT ══ */}
       <section id="about" className="snxa-section" style={{
         background: "#000", borderTop: "1px solid rgba(255,255,255,0.06)",
         position: "relative", overflow: "hidden",
@@ -313,7 +309,6 @@ export default function AboutSection() {
 
         <div style={{ maxWidth: "780px", margin: "0 auto", position: "relative" }}>
 
-          {/* ── Heading block — centered ── */}
           <div ref={leftAnim.ref} style={{ textAlign: "center", marginBottom: "56px" }}>
 
             <div className={`snxa-fade d0${leftAnim.vis ? " vis" : ""}`}
@@ -341,7 +336,6 @@ export default function AboutSection() {
               in your actual content — no hallucinations.
             </p>
 
-            {/* stats */}
             <div className={`snxa-fade d3${leftAnim.vis ? " vis" : ""}`} style={{
               display: "flex", justifyContent: "center", gap: "0",
               marginTop: "40px", paddingTop: "32px",
@@ -349,7 +343,7 @@ export default function AboutSection() {
             }}>
               {[
                 { val: "7",   unit: "Formats",  desc: "File types supported" },
-                { val: "5",   unit: "Outputs",  desc: "Summary formats" },
+                { val: "∞",   unit: "Outputs",  desc: "Ask for any summary style" },
                 { val: "RAG", unit: "Powered",  desc: "Vector retrieval" },
               ].map((s, i, arr) => (
                 <div key={s.unit} style={{
@@ -365,13 +359,11 @@ export default function AboutSection() {
             </div>
           </div>
 
-          {/* ── Divider ── */}
           <div className={`snxa-fade d4${leftAnim.vis ? " vis" : ""}`} style={{
             width: "100%", height: "1px", marginBottom: "48px",
             background: "linear-gradient(90deg, transparent 0%, rgba(247,55,79,0.3) 40%, rgba(247,55,79,0.3) 60%, transparent 100%)",
           }} />
 
-          {/* ── Feature tree ── */}
           <div ref={treeAnim.ref}>
             {FEATURES.map((f, i) => (
               <TreeNode key={f.id} feature={f} index={i} visible={treeAnim.vis} isLast={i === FEATURES.length - 1} />
@@ -380,7 +372,6 @@ export default function AboutSection() {
         </div>
       </section>
 
-      {/* ══ HOW IT WORKS ══ */}
       <section id="how-it-works" className="snxa-section" style={{
         background: "#000", borderTop: "1px solid rgba(255,255,255,0.06)",
         position: "relative", overflow: "hidden", paddingBottom: "100px",

@@ -46,7 +46,6 @@ export default function Navbar() {
 
   const { user, isAuthenticated, logout } = useAppStore();
 
-  const [active,      setActive]      = useState("Home");
   const [currentHash, setCurrentHash] = useState("");
   const [scrolled,    setScrolled]    = useState(false);
   const [dropOpen,    setDropOpen]    = useState(false);
@@ -80,11 +79,8 @@ export default function Navbar() {
     return () => window.removeEventListener("hashchange", fn);
   }, []);
 
-  useEffect(() => {
-    if (pathname === "/" && currentHash === "#about") { setActive("About"); return; }
-    if (pathname.startsWith("/library"))              { setActive("Library"); return; }
-    setActive("Home");
-  }, [pathname, currentHash]);
+  const active =
+    pathname === "/" && currentHash === "#about" ? "About" : pathname.startsWith("/library") ? "Library" : "Home";
 
   useEffect(() => {
     if (!dropOpen) return;
@@ -132,10 +128,6 @@ export default function Navbar() {
     setDropOpen(false);
   };
 
-  const initials = user?.name
-    ? user.name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)
-    : "U";
-
   return (
     <>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Hachen&display=swap');`}</style>
@@ -175,7 +167,6 @@ export default function Navbar() {
         .snx-pill-wrap .snx-active-bar { display: none !important; }
         .snx-pill-wrap.active .snx-active-bar { display: none !important; }
 
-        /* ── CTA (Get Started) — F7374F theme ── */
         .snx-cta {
           display: inline-flex; align-items: center; justify-content: center;
           height: 36px; padding: 0 20px; border-radius: 10px;
@@ -191,7 +182,6 @@ export default function Navbar() {
         .snx-brand { background: none; border: none; cursor: pointer; padding: 0; outline: none; transition: opacity 0.18s ease; }
         .snx-brand:hover { opacity: 0.75; }
 
-        /* ── Avatar — rounded square, F7374F theme ── */
         .snx-avatar {
           display: inline-flex; align-items: center; gap: 6px;
           padding: 5px 8px 5px 5px; border-radius: 10px;
@@ -207,7 +197,6 @@ export default function Navbar() {
         }
         .snx-avatar:active { transform: scale(0.97); }
 
-        /* Rounded-square avatar icon */
         .snx-avatar-icon {
           width: 28px; height: 28px; border-radius: 7px;
           background: rgba(255,255,255,0.1);
@@ -228,7 +217,6 @@ export default function Navbar() {
         .snx-avatar:hover .snx-avatar-chevron { color: rgba(255,255,255,0.6); }
         .snx-avatar-chevron.open { transform: rotate(180deg); }
 
-        /* ── Dropdown — F7374F theme ── */
         .snx-dropdown {
           position: absolute; top: calc(100% + 10px); right: 0;
           background: #050505; border: 1px solid rgba(255,255,255,0.09);
@@ -260,7 +248,6 @@ export default function Navbar() {
         .snx-drop-item.danger:hover { background: rgba(247,55,79,0.1); color: #F7374F; }
         .snx-drop-divider { height: 1px; background: rgba(255,255,255,0.06); margin: 4px 0; }
 
-        /* Plan badge */
         .snx-plan-badge {
           background: rgba(247,55,79,0.1);
           border: 1px solid rgba(247,55,79,0.22);
@@ -318,7 +305,6 @@ export default function Navbar() {
           position: "relative",
         }}>
 
-          {/* LOGO */}
           <button className="snx-brand" onClick={() => handleNav(LINKS[0])} style={{ flexShrink: 0 }}>
             <span style={{
               fontFamily: "'Hachen', var(--font-raleway), sans-serif",
@@ -329,7 +315,6 @@ export default function Navbar() {
             </span>
           </button>
 
-          {/* CENTER PILL NAV */}
           <div className="snx-pill-container" style={
             isMobile ? {
               position: "absolute", left: "50%", top: "50%",
@@ -370,7 +355,6 @@ export default function Navbar() {
             ))}
           </div>
 
-          {/* RIGHT SIDE */}
           <div className="snx-right-wrap" style={{ display: "flex", alignItems: "center", gap: "10px", flexShrink: 0 }}>
             {isAuthenticated && user ? (
               <div style={{ position: "relative" }}>
@@ -379,7 +363,6 @@ export default function Navbar() {
                   onClick={(e) => { e.stopPropagation(); setDropOpen((v) => !v); }}
                   title={user.name}
                 >
-                  {/* Rounded-square avatar icon */}
                   <span className="snx-avatar-icon">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
                       <circle cx="12" cy="8" r="4" stroke="rgba(255,255,255,0.75)" strokeWidth="1.8"/>
@@ -394,7 +377,6 @@ export default function Navbar() {
 
                 {dropOpen && (
                   <div className="snx-dropdown" onClick={(e) => e.stopPropagation()}>
-                    {/* Header */}
                     <div className="snx-drop-header">
                       <div style={{ display: "flex", alignItems: "center", gap: "9px" }}>
                         <div style={{
