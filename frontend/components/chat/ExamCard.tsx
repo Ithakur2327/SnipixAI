@@ -69,7 +69,7 @@ export default function ExamCard({
         <div className="flex items-center gap-2">
           {isQuiz ? <ListChecks size={16} className="text-white/70" /> : <PenLine size={16} className="text-white/70" />}
           <div>
-            <p className="text-[13.5px] font-semibold text-white">{isQuiz ? "Quiz" : "Subjective Exam"}</p>
+            <p className="text-[13.5px] font-semibold text-white">{isQuiz ? "Quiz" : "Test"}</p>
             <p className="text-[12px] text-white/45">
               {exam.topic} · {exam.questions.length} question{exam.questions.length === 1 ? "" : "s"}
             </p>
@@ -147,7 +147,7 @@ export default function ExamCard({
                     disabled={revealingId === q.id}
                     className="text-[12.5px] font-medium text-white/60 hover:text-white transition-colors underline decoration-white/20 disabled:opacity-40"
                   >
-                    {revealingId === q.id ? "Loading..." : isRevealed ? "Hide answer" : "Show answer"}
+                    {revealingId === q.id ? "Loading..." : isRevealed ? "Hide" : "Answer"}
                   </button>
                   {isRevealed && q.answer && (
                     <motion.div

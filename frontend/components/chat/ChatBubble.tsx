@@ -18,7 +18,7 @@ export function UserBubble({ content }: { content: string }) {
       transition={{ duration: 0.2, ease: "easeOut" }}
       className="flex justify-end"
     >
-      <div className="max-w-[85%] rounded-2xl rounded-tr-md bg-white/10 px-4 py-2.5 text-[14px] leading-6 text-white whitespace-pre-wrap break-words">
+      <div className="max-w-[85%] rounded-2xl rounded-tr-md bg-white/10 px-4 py-2.5 text-[15px] leading-7 text-white whitespace-pre-wrap break-words">
         {content}
       </div>
     </motion.div>
@@ -31,15 +31,18 @@ export function AssistantBubble({ content, streaming = false }: { content: strin
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2, ease: "easeOut" }}
-      className="flex gap-3"
+      className="flex gap-3.5"
     >
-      <div className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-white/15 text-white/70">
+      <div
+        className="mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/15 text-white transition-shadow duration-500"
+        style={streaming ? { boxShadow: "0 0 0 3px rgba(247,55,79,0.12), 0 0 16px rgba(247,55,79,0.35)" } : undefined}
+      >
         <AiMark />
       </div>
-      <div className="min-w-0 flex-1 text-[14px]">
+      <div className="min-w-0 flex-1 text-[15px]">
         <MarkdownContent content={content} />
         {streaming && (
-          <span className="ml-0.5 inline-block h-[15px] w-[2px] translate-y-[3px] animate-pulse bg-white/70" />
+          <span className="ml-0.5 inline-block h-[16px] w-[3px] translate-y-[3px] animate-pulse bg-white/80" />
         )}
       </div>
     </motion.div>
@@ -48,8 +51,11 @@ export function AssistantBubble({ content, streaming = false }: { content: strin
 
 export function TypingRow() {
   return (
-    <div className="flex gap-3">
-      <div className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-white/15 text-white/70">
+    <div className="flex gap-3.5">
+      <div
+        className="mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/15 text-white"
+        style={{ boxShadow: "0 0 0 3px rgba(247,55,79,0.12), 0 0 16px rgba(247,55,79,0.35)" }}
+      >
         <AiMark />
       </div>
       <div className="flex items-center gap-1.5 pt-2.5">

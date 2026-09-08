@@ -1,8 +1,9 @@
 "use client";
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, ChevronDown, GraduationCap, Send, Square, X } from "lucide-react";
+import { ArrowLeft, ChevronDown, FileText, GraduationCap, Home, Send, Square, X } from "lucide-react";
 import { chatAPI, documentAPI, examAPI, getApiErrorMessage, streamChatMessage } from "@/lib/api";
 import { DOCUMENT_TYPE_META, formatWords } from "@/lib/utils";
 import type { ChatMessage, Document } from "@/types";
@@ -12,33 +13,56 @@ import ExamComposer, { type ExamFormValues } from "./ExamComposer";
 
 const AUTO_SUMMARY_PROMPT = "Summarize this document for me.";
 const MAX_POLL_ATTEMPTS = 90;
+const MIN_REVEAL_CHARS_PER_FRAME = 2;
+const REVEAL_CATCHUP_DIVISOR = 8;
 
 const subscribeNever = () => () => {};
 function useHasMounted(): boolean {
   return useSyncExternalStore(subscribeNever, () => true, () => false);
 }
 
-function StatusSkeleton({ label }: { label: string }) {
+function DocCard({ doc }: { doc: Document }) {
+  const type = DOCUMENT_TYPE_META[doc.sourceType] ?? DOCUMENT_TYPE_META.txt;
+  const isProcessing = doc.status === "processing";
   return (
-    <div className="flex flex-col items-center justify-center gap-4 py-20 text-center">
-      <div className="flex gap-1.5">
-        {[0, 1, 2].map((i) => (
-          <motion.span
-            key={i}
-            className="h-2 w-2 rounded-full bg-white/40"
-            animate={{ opacity: [0.25, 1, 0.25] }}
-            transition={{ duration: 1.1, repeat: Infinity, delay: i * 0.18, ease: "easeInOut" }}
-          />
-        ))}
+    <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+      <div
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
+        style={{ background: type.bg, color: type.color }}
+      >
+        <FileText size={16} />
       </div>
-      <p className="text-[13px] text-white/45">{label}</p>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-[13.5px] font-semibold text-white">{doc.title}</p>
+        <p className="text-[11.5px] text-white/40">
+          {isProcessing
+            ? "Reading your document…"
+            : doc.status === "error"
+            ? "Processing failed"
+            : doc.wordCount
+            ? `${formatWords(doc.wordCount)} words${doc.pageCount ? ` · ${doc.pageCount}p` : ""}`
+            : "Ready"}
+        </p>
+      </div>
+      {isProcessing && (
+        <div className="flex shrink-0 gap-1">
+          {[0, 1, 2].map((i) => (
+            <motion.span
+              key={i}
+              className="h-1.5 w-1.5 rounded-full bg-white/40"
+              animate={{ opacity: [0.25, 1, 0.25] }}
+              transition={{ duration: 1.1, repeat: Infinity, delay: i * 0.18, ease: "easeInOut" }}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
 function DocErrorState({ message, onClose }: { message: string; onClose: () => void }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-3 py-20 text-center px-6">
+    <div className="flex flex-col items-center justify-center gap-3 py-16 text-center px-6">
       <p className="text-[14px] font-medium text-white">This document couldn&apos;t be processed</p>
       <p className="max-w-md text-[12.5px] leading-6 text-white/45">{message}</p>
       <button
@@ -55,11 +79,16 @@ export default function DocumentChat({
   documentId,
   onClose,
   variant = "overlay",
+  initialMessage,
+  enterAnimation = false,
 }: {
   documentId: string;
   onClose: () => void;
   variant?: "overlay" | "page";
+  initialMessage?: string;
+  enterAnimation?: boolean;
 }) {
+  const router = useRouter();
   const [doc, setDoc] = useState<Document | null>(null);
   const [docLoadError, setDocLoadError] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -80,6 +109,8 @@ export default function DocumentChat({
   const isNearBottomRef = useRef(true);
   const autoSummaryTriggeredRef = useRef(false);
   const pollAttemptsRef = useRef(0);
+  const fullTextRef = useRef("");
+  const revealFrameRef = useRef<number | null>(null);
 
   const isMounted = useHasMounted();
 
@@ -122,7 +153,7 @@ export default function DocumentChat({
         clearInterval(interval);
         setDoc((prev) => (prev ? { ...prev, status: "error", errorMessage: "This is taking longer than expected. Please try again." } : prev));
       }
-    }, 2000);
+    }, 1200);
     return () => clearInterval(interval);
   }, [doc, documentId]);
 
@@ -148,6 +179,30 @@ export default function DocumentChat({
       cancelled = true;
     };
   }, [doc?.status, documentId, historyLoaded]);
+
+  const stopRevealLoop = useCallback(() => {
+    if (revealFrameRef.current !== null) {
+      cancelAnimationFrame(revealFrameRef.current);
+      revealFrameRef.current = null;
+    }
+  }, []);
+
+  const startRevealLoop = useCallback(() => {
+    stopRevealLoop();
+    const tick = () => {
+      setStreamingContent((prev) => {
+        const full = fullTextRef.current;
+        if (prev.length >= full.length) return prev;
+        const backlog = full.length - prev.length;
+        const step = Math.max(MIN_REVEAL_CHARS_PER_FRAME, Math.ceil(backlog / REVEAL_CATCHUP_DIVISOR));
+        return full.slice(0, prev.length + step);
+      });
+      revealFrameRef.current = requestAnimationFrame(tick);
+    };
+    revealFrameRef.current = requestAnimationFrame(tick);
+  }, [stopRevealLoop]);
+
+  useEffect(() => stopRevealLoop, [stopRevealLoop]);
 
   const autoResizeTextarea = useCallback(() => {
     const el = textareaRef.current;
@@ -177,9 +232,10 @@ export default function DocumentChat({
       };
       setMessages((prev) => [...prev, userMessage]);
       setIsStreaming(true);
+      fullTextRef.current = "";
       setStreamingContent("");
+      startRevealLoop();
 
-      let accumulated = "";
       const controller = new AbortController();
       abortRef.current = controller;
       let finalized = false;
@@ -189,12 +245,12 @@ export default function DocumentChat({
           signal: controller.signal,
           onEvent: (event) => {
             if (event.type === "token") {
-              accumulated += event.content;
-              setStreamingContent(accumulated);
+              fullTextRef.current += event.content;
             } else if (event.type === "error") {
               setChatError(event.message);
             } else if (event.type === "done") {
               finalized = true;
+              stopRevealLoop();
               setMessages((prev) => [
                 ...prev,
                 {
@@ -202,7 +258,7 @@ export default function DocumentChat({
                   documentId,
                   role: "assistant",
                   type: "text",
-                  content: accumulated,
+                  content: fullTextRef.current,
                   sources: event.sources,
                   exam: null,
                   createdAt: event.createdAt,
@@ -217,7 +273,8 @@ export default function DocumentChat({
           setChatError(getApiErrorMessage(err, "Something went wrong while generating a response."));
         }
       } finally {
-        if (!finalized && accumulated.trim()) {
+        stopRevealLoop();
+        if (!finalized && fullTextRef.current.trim()) {
           setMessages((prev) => [
             ...prev,
             {
@@ -225,7 +282,7 @@ export default function DocumentChat({
               documentId,
               role: "assistant",
               type: "text",
-              content: accumulated,
+              content: fullTextRef.current,
               sources: [],
               exam: null,
               createdAt: new Date().toISOString(),
@@ -237,15 +294,15 @@ export default function DocumentChat({
         abortRef.current = null;
       }
     },
-    [documentId, isStreaming, doc?.status, autoResizeTextarea]
+    [documentId, isStreaming, doc?.status, autoResizeTextarea, startRevealLoop, stopRevealLoop]
   );
 
   useEffect(() => {
     if (doc?.status === "ready" && historyLoaded && messages.length === 0 && !autoSummaryTriggeredRef.current) {
       autoSummaryTriggeredRef.current = true;
-      void handleSend(AUTO_SUMMARY_PROMPT);
+      void handleSend(initialMessage?.trim() || AUTO_SUMMARY_PROMPT);
     }
-  }, [doc?.status, historyLoaded, messages.length, handleSend]);
+  }, [doc?.status, historyLoaded, messages.length, handleSend, initialMessage]);
 
   function scrollToBottom(behavior: ScrollBehavior = "smooth") {
     bottomRef.current?.scrollIntoView({ behavior });
@@ -275,11 +332,11 @@ export default function DocumentChat({
   async function handleGenerateExam(values: ExamFormValues) {
     setIsGeneratingExam(true);
     setExamError(null);
+    setExamComposerOpen(false);
+    isNearBottomRef.current = true;
     try {
       const res = await examAPI.generate(documentId, values);
       setMessages((prev) => [...prev, res.data.data.message]);
-      setExamComposerOpen(false);
-      isNearBottomRef.current = true;
     } catch (err) {
       setExamError(getApiErrorMessage(err, "Could not generate the exam. Please try again."));
     } finally {
@@ -294,15 +351,7 @@ export default function DocumentChat({
     }
   }
 
-  const typeMeta = doc ? DOCUMENT_TYPE_META[doc.sourceType] ?? DOCUMENT_TYPE_META.txt : null;
-
-  const statusLabel = useMemo(() => {
-    if (!doc) return "";
-    if (doc.status === "processing") return "Processing your document…";
-    if (doc.status === "error") return "Processing failed";
-    if (doc.wordCount) return `${formatWords(doc.wordCount)} words`;
-    return "Ready";
-  }, [doc]);
+  const showThread = !docLoadError && doc && doc.status !== "error";
 
   const containerClass =
     variant === "overlay"
@@ -310,8 +359,14 @@ export default function DocumentChat({
       : "flex min-h-screen flex-col bg-black";
 
   const content = (
-    <div className={containerClass} style={variant === "overlay" ? { zIndex: 1000000 } : undefined}>
-      <div className="sticky top-0 z-20 flex items-center gap-3 border-b border-white/10 bg-black/95 px-4 py-3 backdrop-blur">
+    <motion.div
+      className={containerClass}
+      style={variant === "overlay" ? { zIndex: 1000000 } : undefined}
+      initial={enterAnimation ? { opacity: 0, scale: 0.92, y: 24 } : false}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+    >
+      <div className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-white/10 bg-black/95 px-4 py-3 backdrop-blur">
         <button
           onClick={onClose}
           className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white/60 transition-colors hover:bg-white/10 hover:text-white"
@@ -319,32 +374,44 @@ export default function DocumentChat({
         >
           {variant === "overlay" ? <X size={17} /> : <ArrowLeft size={17} />}
         </button>
-        {typeMeta && (
-          <span
-            className="shrink-0 rounded-md px-2 py-1 text-[10.5px] font-bold tracking-wide"
-            style={{ color: typeMeta.color, background: typeMeta.bg }}
-          >
-            {typeMeta.label}
-          </span>
-        )}
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-[14px] font-semibold text-white">{doc?.title ?? "Loading…"}</p>
-          <p className="truncate text-[11px] text-white/40">{statusLabel}</p>
+        <div className="min-w-0 flex-1 text-center">
+          <p className="truncate text-[13.5px] font-semibold text-white">{doc?.title ?? "SnipixAI"}</p>
         </div>
+        <button
+          onClick={() => router.push("/")}
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white/60 transition-colors hover:bg-white/10 hover:text-white"
+          aria-label="Home"
+          title="Home"
+        >
+          <Home size={16} />
+        </button>
       </div>
 
       <div ref={scrollRef} onScroll={handleScroll} className="relative flex-1 overflow-y-auto">
-        <div className="mx-auto flex max-w-[760px] flex-col gap-6 px-4 py-6 sm:px-6">
+        <div className="mx-auto flex max-w-[900px] flex-col gap-6 px-4 py-6 sm:px-8">
           {docLoadError && <DocErrorState message={docLoadError} onClose={onClose} />}
-
-          {!docLoadError && doc?.status === "processing" && <StatusSkeleton label="Reading and understanding your document…" />}
           {!docLoadError && doc?.status === "error" && (
             <DocErrorState message={doc.errorMessage || "Something went wrong while processing this document."} onClose={onClose} />
           )}
 
-          {!docLoadError && doc?.status === "ready" && !historyLoaded && <StatusSkeleton label="Loading conversation…" />}
+          {showThread && doc && <DocCard doc={doc} />}
 
-          {!docLoadError &&
+          {showThread && doc?.status === "ready" && !historyLoaded && (
+            <div className="flex justify-center py-10">
+              <div className="flex gap-1.5">
+                {[0, 1, 2].map((i) => (
+                  <motion.span
+                    key={i}
+                    className="h-1.5 w-1.5 rounded-full bg-white/30"
+                    animate={{ opacity: [0.25, 1, 0.25] }}
+                    transition={{ duration: 1.1, repeat: Infinity, delay: i * 0.18, ease: "easeInOut" }}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {showThread &&
             doc?.status === "ready" &&
             historyLoaded &&
             messages.map((message) =>
@@ -382,8 +449,8 @@ export default function DocumentChat({
       </div>
 
       {doc?.status === "ready" && (
-        <div className="border-t border-white/10 bg-black px-4 py-3 sm:px-6">
-          <div className="mx-auto max-w-[760px]">
+        <div className="border-t border-white/10 bg-black px-4 py-3 sm:px-8">
+          <div className="mx-auto max-w-[900px]">
             <AnimatePresence>
               {examComposerOpen && (
                 <div className="mb-3">
@@ -405,9 +472,12 @@ export default function DocumentChat({
                 type="button"
                 onClick={() => setExamComposerOpen((v) => !v)}
                 title="Generate an exam"
-                className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors ${
-                  examComposerOpen ? "bg-white/15 text-white" : "text-white/50 hover:bg-white/10 hover:text-white"
-                }`}
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors"
+                style={
+                  examComposerOpen
+                    ? { background: "rgba(247,55,79,0.16)", color: "#F7374F" }
+                    : { color: "rgba(247,55,79,0.65)" }
+                }
               >
                 <GraduationCap size={17} />
               </button>
@@ -422,7 +492,7 @@ export default function DocumentChat({
                 disabled={isStreaming}
                 rows={1}
                 placeholder="Message SnipixAI…"
-                className="max-h-[200px] flex-1 resize-none bg-transparent py-1.5 text-[14px] leading-6 text-white placeholder:text-white/30 outline-none disabled:opacity-50"
+                className="max-h-[200px] flex-1 resize-none bg-transparent py-1.5 text-[15px] leading-6 text-white placeholder:text-white/30 outline-none disabled:opacity-50"
               />
               {isStreaming ? (
                 <button
@@ -449,7 +519,7 @@ export default function DocumentChat({
           </div>
         </div>
       )}
-    </div>
+    </motion.div>
   );
 
   if (variant === "overlay") {

@@ -52,7 +52,7 @@ const FEATURES = [
     children: [
       { label: "Smart chunking",      note: "Overlapping sliding windows preserve cross-boundary context" },
       { label: "LLM embeddings",      note: "High-dimensional vectors capture semantic meaning" },
-      { label: "Pinecone vector DB",  note: "Per-user namespaced index for sub-millisecond retrieval" },
+      { label: "Vector database",  note: "Per-user isolated index for sub-millisecond retrieval" },
       { label: "Top-k semantic search", note: "Most relevant chunks surfaced for every query" },
     ],
   },
@@ -83,10 +83,10 @@ const FEATURES = [
   {
     id: "privacy",
     label: "Per-User Data Isolation",
-    detail: "Every user's vectors are namespaced independently in Pinecone. Your documents are never co-mingled with another user's data.",
+    detail: "Every user's vectors are isolated independently. Your documents are never co-mingled with another user's data.",
     tag: "Security",
     children: [
-      { label: "Namespaced vectors",  note: "Strict Pinecone namespace per user ID" },
+      { label: "Isolated vectors",  note: "Strict per-user index isolation" },
       { label: "JWT authentication",  note: "Stateless, short-lived token-based access control" },
       { label: "Zero data leakage",   note: "No cross-user vector contamination by design" },
     ],
@@ -94,12 +94,12 @@ const FEATURES = [
   {
     id: "speed",
     label: "Fast & Scalable Architecture",
-    detail: "Built on a Node.js + TypeScript backend with async processing pipelines. Documents are processed and indexed in the background without blocking the UI.",
+    detail: "Built on an async-first backend with non-blocking processing pipelines. Documents are processed and indexed in the background without blocking the UI.",
     tag: "Performance",
     children: [
       { label: "Async document pipeline", note: "Upload → extract → chunk → embed runs in background" },
       { label: "Polling status API",       note: "Real-time processing status with exponential backoff" },
-      { label: "Cloud storage",            note: "Files stored on Cloudinary for scalable delivery" },
+      { label: "Cloud storage",            note: "Files stored securely for scalable delivery" },
     ],
   },
 ];
@@ -119,7 +119,7 @@ const STEPS = [
   {
     num: "02",
     title: "RAG pipeline runs",
-    desc: "Text is extracted, split into chunks, embedded via LLM, and indexed in Pinecone — all automatically.",
+    desc: "Text is extracted, split into chunks, embedded, and indexed for retrieval — all automatically.",
     icon: (
       <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
         <circle cx="11" cy="11" r="8" stroke="#F7374F" strokeWidth="1.5"/>
@@ -439,7 +439,7 @@ export default function AboutSection() {
             <span style={{ fontSize: "10px", color: "rgba(255,255,255,0.16)", textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 600 }}>
               Powered by
             </span>
-            {["RAG Pipeline", "LLM Embeddings", "Pinecone Vector DB", "LangChain", "FastAPI"].map((t, i, arr) => (
+            {["Semantic Retrieval", "Smart Chunking", "Vector Search", "Streaming Chat", "Secure by Design"].map((t, i, arr) => (
               <span key={t} style={{ display: "inline-flex", alignItems: "center", gap: "10px" }}>
                 <span style={{ fontSize: "11px", fontWeight: 600, color: "rgba(255,255,255,0.38)" }}>{t}</span>
                 {i < arr.length - 1 && <span style={{ width: "3px", height: "3px", borderRadius: "50%", background: "rgba(255,255,255,0.1)", display: "inline-block" }} />}

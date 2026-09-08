@@ -8,22 +8,24 @@ export default function MarkdownContent({ content }: { content: string }) {
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
-          h1: (props) => <h1 className="text-[1.35em] font-bold mt-5 mb-3 text-white first:mt-0" {...props} />,
-          h2: (props) => <h2 className="text-[1.2em] font-bold mt-5 mb-2.5 text-white first:mt-0" {...props} />,
-          h3: (props) => <h3 className="text-[1.08em] font-semibold mt-4 mb-2 text-white first:mt-0" {...props} />,
+          h1: (props) => <h1 className="text-[1.5em] font-extrabold mt-6 mb-3.5 text-white first:mt-0 tracking-tight" {...props} />,
+          h2: (props) => (
+            <h2 className="text-[1.28em] font-extrabold mt-6 mb-3 text-white first:mt-0 tracking-tight pb-2 border-b border-white/10" {...props} />
+          ),
+          h3: (props) => <h3 className="text-[1.12em] font-bold mt-5 mb-2.5 text-white first:mt-0" {...props} />,
           p: (props) => <p className="leading-7 mb-3.5 text-[#E0E0E0] last:mb-0" {...props} />,
-          ul: (props) => <ul className="list-disc pl-5 mb-3.5 space-y-1.5 marker:text-[#6E6E6E]" {...props} />,
-          ol: (props) => <ol className="list-decimal pl-5 mb-3.5 space-y-1.5 marker:text-[#6E6E6E]" {...props} />,
+          ul: (props) => <ul className="list-disc pl-5 mb-3.5 space-y-2 marker:text-white/40" {...props} />,
+          ol: (props) => <ol className="list-decimal pl-5 mb-3.5 space-y-2 marker:text-white/40" {...props} />,
           li: (props) => <li className="leading-7 text-[#E0E0E0] pl-1" {...props} />,
-          strong: (props) => <strong className="font-semibold text-white" {...props} />,
+          strong: (props) => <strong className="font-bold text-white" {...props} />,
           em: (props) => <em className="italic text-[#E0E0E0]" {...props} />,
           a: (props) => (
             <a className="underline decoration-white/30 hover:decoration-white text-white" target="_blank" rel="noreferrer" {...props} />
           ),
           blockquote: (props) => (
-            <blockquote className="border-l-2 border-white/20 pl-4 my-3.5 text-[#B4B4B4] italic" {...props} />
+            <blockquote className="border-l-[3px] border-white/25 bg-white/[0.03] rounded-r-lg pl-4 pr-3 py-2.5 my-3.5 text-[#C8C8C8] italic" {...props} />
           ),
-          hr: () => <hr className="my-5 border-white/10" />,
+          hr: () => <hr className="my-6 border-white/15" />,
           table: (props) => (
             <div className="overflow-x-auto mb-3.5 rounded-lg border border-white/10">
               <table className="w-full text-sm border-collapse" {...props} />
