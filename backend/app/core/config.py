@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     cloudinary_api_secret: str = os.getenv("CLOUDINARY_API_SECRET", "")
 
     groq_api_key: str = os.getenv("GROQ_API_KEY", "")
-    groq_model: str = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+    groq_model: str = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
 
     pinecone_api_key: str = os.getenv("PINECONE_API_KEY", "")
     pinecone_index_name: str = os.getenv("PINECONE_INDEX_NAME", "snipixai")
@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     embedding_dimension: int = int(os.getenv("EMBEDDING_DIMENSION", "384"))
     embedding_model: str = os.getenv("EMBEDDING_MODEL", "all-MiniLM-L6-v2")
 
-    max_upload_size_mb: int = int(os.getenv("MAX_UPLOAD_SIZE_MB", "25"))
+    max_upload_size_mb: int = int(os.getenv("MAX_UPLOAD_SIZE_MB", "10"))
     chunk_size: int = int(os.getenv("CHUNK_SIZE", "1000"))
     chunk_overlap: int = int(os.getenv("CHUNK_OVERLAP", "150"))
     retrieval_top_k: int = int(os.getenv("RETRIEVAL_TOP_K", "6"))

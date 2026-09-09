@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useRef, useState } from "react";
-import { useDropzone } from "react-dropzone";
+import { useDropzone, type FileRejection } from "react-dropzone";
 import { AnimatePresence } from "framer-motion";
 import { FileText, Globe, Type, UploadCloud, X } from "lucide-react";
 import { documentAPI, getApiErrorMessage } from "@/lib/api";
@@ -25,14 +25,26 @@ export default function HeroSection() {
   const [documentId, setDocumentId] = useState<string | null>(null);
   const instructionsRef = useRef<HTMLTextAreaElement>(null);
 
-  const onDrop = useCallback((accepted: File[]) => {
-    if (accepted[0]) setFile(accepted[0]);
+  const onDrop = useCallback((accepted: File[], rejections: FileRejection[]) => {
+    if (accepted[0]) {
+      setFile(accepted[0]);
+      setErrorMsg(null);
+      return;
+    }
+    const reason = rejections[0]?.errors[0]?.code;
+    if (reason === "file-too-large") {
+      setErrorMsg("That file is too large. Please upload something under 10MB.");
+    } else if (reason === "file-invalid-type") {
+      setErrorMsg("Unsupported file type. Please upload a PDF, DOCX, PPTX, TXT, PNG, or JPG.");
+    } else if (rejections.length > 0) {
+      setErrorMsg("That file couldn't be uploaded. Please try a different one.");
+    }
   }, []);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     multiple: false,
-    maxSize: 25 * 1024 * 1024,
+    maxSize: 10 * 1024 * 1024,
     accept: {
       "application/pdf": [".pdf"],
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [".docx"],
@@ -230,7 +242,7 @@ export default function HeroSection() {
                   <p style={{ fontSize: "12.5px", color: "rgba(255,255,255,0.4)" }}>
                     Drop a file here, or <span style={{ color: "#F7374F", fontWeight: 600 }}>browse</span>
                   </p>
-                  <p style={{ fontSize: "10.5px", color: "rgba(255,255,255,0.2)" }}>PDF · DOCX · PPT · TXT · Image, up to 25MB</p>
+                  <p style={{ fontSize: "10.5px", color: "rgba(255,255,255,0.2)" }}>PDF · DOCX · PPT · TXT · Image, up to 10MB</p>
                 </>
               )}
             </div>

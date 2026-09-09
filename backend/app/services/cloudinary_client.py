@@ -1,7 +1,9 @@
 import cloudinary
+import cloudinary.exceptions
 import cloudinary.uploader
 
 from app.core.config import get_settings
+from app.core.exceptions import BadRequestError
 
 _configured = False
 
@@ -35,16 +37,24 @@ def _ensure_configured() -> None:
 def upload_file(content: bytes, filename: str, mimetype: str) -> dict:
     _ensure_configured()
     resource_type = "image" if mimetype in IMAGE_MIME_TYPES else "raw"
-    result = cloudinary.uploader.upload(
-        content,
-        folder="snipixai",
-        resource_type=resource_type,
-        type="upload",
-        access_mode="public",
-        filename=filename,
-        use_filename=True,
-        unique_filename=True,
-    )
+    try:
+        result = cloudinary.uploader.upload(
+            content,
+            folder="snipixai",
+            resource_type=resource_type,
+            type="upload",
+            access_mode="public",
+            filename=filename,
+            use_filename=True,
+            unique_filename=True,
+        )
+    except cloudinary.exceptions.Error as exc:
+        message = str(exc)
+        if "File size too large" in message or "Maximum is" in message:
+            raise BadRequestError(
+                "This file is too large for your storage plan's upload limit. Please upload a smaller file."
+            )
+        raise BadRequestError(f"File upload failed: {message}")
     return {
         "public_id": result.get("public_id"),
         "url": result.get("secure_url"),
