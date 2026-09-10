@@ -12,7 +12,10 @@ import ExamCard from "./ExamCard";
 import ExamComposer, { type ExamFormValues } from "./ExamComposer";
 
 const AUTO_SUMMARY_PROMPT = "Summarize this document for me.";
-const MAX_POLL_ATTEMPTS = 90;
+// 1.2s per attempt. Bumped from 90 (108s) to give larger 50MB uploads
+// (bigger PDFs, OCR on images) enough headroom to finish processing
+// before the UI gives up and shows an error.
+const MAX_POLL_ATTEMPTS = 150;
 const MIN_REVEAL_CHARS_PER_FRAME = 2;
 const REVEAL_CATCHUP_DIVISOR = 8;
 

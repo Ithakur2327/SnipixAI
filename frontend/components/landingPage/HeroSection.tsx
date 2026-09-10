@@ -33,7 +33,7 @@ export default function HeroSection() {
     }
     const reason = rejections[0]?.errors[0]?.code;
     if (reason === "file-too-large") {
-      setErrorMsg("That file is too large. Please upload something under 10MB.");
+      setErrorMsg("That file is too large. Please upload something under 50MB.");
     } else if (reason === "file-invalid-type") {
       setErrorMsg("Unsupported file type. Please upload a PDF, DOCX, PPTX, TXT, PNG, or JPG.");
     } else if (rejections.length > 0) {
@@ -44,7 +44,7 @@ export default function HeroSection() {
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     multiple: false,
-    maxSize: 10 * 1024 * 1024,
+    maxSize: 50 * 1024 * 1024,
     accept: {
       "application/pdf": [".pdf"],
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [".docx"],
@@ -242,7 +242,7 @@ export default function HeroSection() {
                   <p style={{ fontSize: "12.5px", color: "rgba(255,255,255,0.4)" }}>
                     Drop a file here, or <span style={{ color: "#F7374F", fontWeight: 600 }}>browse</span>
                   </p>
-                  <p style={{ fontSize: "10.5px", color: "rgba(255,255,255,0.2)" }}>PDF · DOCX · PPT · TXT · Image, up to 10MB</p>
+                  <p style={{ fontSize: "10.5px", color: "rgba(255,255,255,0.2)" }}>PDF · DOCX · PPT · TXT · Image, up to 50MB</p>
                 </>
               )}
             </div>

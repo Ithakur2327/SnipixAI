@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import re
 from io import BytesIO
@@ -68,6 +69,21 @@ def extract_text(
     except Exception as exc:
         logger.error("[extractor] Error extracting %s: %s", source_type, exc)
         raise
+
+
+# --- Async wrapper ----------------------------------------------------
+# Extraction does blocking network I/O (requests.get) and, for PDFs/OCR,
+# real CPU work - all of which would otherwise stall the event loop for
+# every other user while one document (especially a large 50MB one) is
+# being processed.
+
+
+async def extract_text_async(
+    source_type: str,
+    source_url: Optional[str] = None,
+    raw_text: Optional[str] = None,
+) -> Tuple[str, Optional[int]]:
+    return await asyncio.to_thread(extract_text, source_type, source_url, raw_text)
 
 
 def _extract_pdf(buffer: BytesIO) -> Tuple[str, int]:

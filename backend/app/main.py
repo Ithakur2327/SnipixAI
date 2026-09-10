@@ -1,9 +1,11 @@
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api import auth, chat, documents, exam, users
@@ -23,11 +25,24 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(na
 logger = logging.getLogger(__name__)
 
 
+async def _warm_up_embedder() -> None:
+    """Loads the embedding model in a background thread so it never blocks
+    server startup. Uvicorn starts accepting connections (health checks,
+    auth, etc) immediately instead of waiting 10-30s+ for torch + the model
+    to load. If a real request needs the model before this finishes, the
+    embedder's own lock makes it wait safely instead of double-loading."""
+    try:
+        await embedder.load_model_async()
+        logger.info("[startup] Embedding model warm-up complete")
+    except Exception:
+        logger.exception("[startup] Embedding model warm-up failed; will retry lazily on first use")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await connect_to_mongo()
-    embedder.load_model()
-    logger.info("SnipixAI backend ready")
+    asyncio.create_task(_warm_up_embedder())
+    logger.info("SnipixAI backend ready (embedding model loading in background)")
     yield
     await close_mongo_connection()
 
@@ -35,6 +50,10 @@ async def lifespan(app: FastAPI):
 settings = get_settings()
 
 app = FastAPI(title=settings.app_name, lifespan=lifespan)
+
+# Compresses JSON/text responses (document text, chat history, etc) so
+# larger payloads transfer faster over the wire.
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 app.add_middleware(
     CORSMiddleware,

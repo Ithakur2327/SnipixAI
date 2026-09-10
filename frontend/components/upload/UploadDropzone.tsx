@@ -28,7 +28,7 @@ export default function UploadDropzone({ file, onFileChange }: Props) {
       }
       const reason = rejections[0]?.errors[0]?.code;
       if (reason === "file-too-large") {
-        setRejectionError("That file is too large. Please upload something under 10MB.");
+        setRejectionError("That file is too large. Please upload something under 50MB.");
       } else if (reason === "file-invalid-type") {
         setRejectionError("Unsupported file type. Please upload a PDF, DOCX, PPTX, TXT, PNG, or JPG.");
       } else if (rejections.length > 0) {
@@ -39,7 +39,7 @@ export default function UploadDropzone({ file, onFileChange }: Props) {
   );
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    onDrop, accept: ACCEPTED, maxSize: 10 * 1024 * 1024, multiple: false,
+    onDrop, accept: ACCEPTED, maxSize: 50 * 1024 * 1024, multiple: false,
   });
 
   return (
@@ -77,7 +77,7 @@ export default function UploadDropzone({ file, onFileChange }: Props) {
             <p style={{ fontSize: "13px", fontWeight: 600, color: "#fff", marginBottom: "4px" }}>
               {isDragActive ? "Drop it here!" : "Drop your file here or click to browse"}
             </p>
-            <p style={{ fontSize: "11px", color: "rgba(255,255,255,0.3)" }}>PDF, DOCX, PPTX, TXT, PNG, JPG · Max 10MB</p>
+            <p style={{ fontSize: "11px", color: "rgba(255,255,255,0.3)" }}>PDF, DOCX, PPTX, TXT, PNG, JPG · Max 50MB</p>
           </div>
         )}
       </div>

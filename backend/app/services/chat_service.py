@@ -58,8 +58,8 @@ async def stream_chat_response(user_id: str, document_id: str, user_message: str
     await message_service.insert_message(document_id, user_id, "user", "text", content=user_message)
 
     try:
-        query_vector = embedder.embed_query(user_message)
-        raw_matches = vector_store.similarity_search(
+        query_vector = await embedder.embed_query_async(user_message)
+        raw_matches = await vector_store.similarity_search_async(
             query_vector, document_id, user_id, top_k=settings.retrieval_top_k
         )
     except Exception as exc:

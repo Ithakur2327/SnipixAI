@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from app.core.database import get_database
 from app.core.exceptions import ConflictError, NotFoundError, UnauthorizedError
 from app.core.mongo_utils import serialize_doc, to_object_id
-from app.core.security import create_access_token, hash_password, verify_password
+from app.core.security import create_access_token, hash_password_async, verify_password_async
 
 
 async def register_user(name: str, email: str, password: str) -> dict:
@@ -17,7 +17,7 @@ async def register_user(name: str, email: str, password: str) -> dict:
     user_doc = {
         "name": name.strip(),
         "email": normalized_email,
-        "passwordHash": hash_password(password),
+        "passwordHash": await hash_password_async(password),
         "plan": "free",
         "avatarUrl": None,
         "createdAt": now,
@@ -32,7 +32,7 @@ async def authenticate_user(email: str, password: str) -> dict:
     db = get_database()
     normalized_email = email.strip().lower()
     user = await db.users.find_one({"email": normalized_email})
-    if not user or not verify_password(password, user["passwordHash"]):
+    if not user or not await verify_password_async(password, user["passwordHash"]):
         raise UnauthorizedError("Invalid email or password")
     return user
 

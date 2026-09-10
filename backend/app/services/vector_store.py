@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from typing import List
 
@@ -70,3 +71,27 @@ def delete_document_vectors(document_id: str) -> None:
         logger.info("[vector_store] Deleted vectors for doc: %s", document_id)
     except Exception as exc:
         logger.error("[vector_store] Delete error: %s", exc)
+
+
+# --- Async wrappers -------------------------------------------------------
+# The pinecone client is synchronous under the hood (blocking HTTP calls).
+# Every chat message calls similarity_search, and every upload calls
+# upsert_chunks - running these on the event loop directly would stall
+# every other concurrent user's request. Offload to a thread instead.
+
+
+async def upsert_chunks_async(chunks: List[dict]) -> int:
+    return await asyncio.to_thread(upsert_chunks, chunks)
+
+
+async def similarity_search_async(
+    query_vector: List[float],
+    document_id: str,
+    user_id: str,
+    top_k: int = 5,
+) -> List[dict]:
+    return await asyncio.to_thread(similarity_search, query_vector, document_id, user_id, top_k)
+
+
+async def delete_document_vectors_async(document_id: str) -> None:
+    await asyncio.to_thread(delete_document_vectors, document_id)

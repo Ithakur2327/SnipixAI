@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from typing import List
 
@@ -7,6 +8,13 @@ from app.core.config import get_settings
 from app.services import llm
 
 logger = logging.getLogger(__name__)
+
+# How many sections we condense with the LLM at the same time. Sequential
+# condensation (one section, wait, next section...) is the main reason
+# summarizing a large document used to feel slow - a 30-section document at
+# ~2s/call took a minute or more. Running them concurrently (bounded so we
+# don't blow through Groq rate limits) turns that into a few seconds.
+MAX_CONCURRENT_CONDENSATIONS = 6
 
 
 def estimate_tokens(text: str) -> int:
@@ -38,6 +46,24 @@ async def _condense_section(section: str, index: int, total: int, target_words: 
     return result.strip()
 
 
+async def _condense_section_bounded(
+    semaphore: asyncio.Semaphore,
+    section: str,
+    index: int,
+    total: int,
+    target_words: int,
+) -> str:
+    async with semaphore:
+        try:
+            condensed = await _condense_section(section, index, total, target_words)
+            return condensed or section[: target_words * 6]
+        except Exception as exc:
+            logger.error("[context_builder] Failed to condense section %d: %s", index, exc)
+            # Fall back to a raw truncated slice of that section so one failed
+            # LLM call doesn't drop content or fail the whole document.
+            return section[: target_words * 6]
+
+
 async def build_document_context(raw_text: str) -> str:
     settings = get_settings()
     cleaned = (raw_text or "").strip()
@@ -49,19 +75,23 @@ async def build_document_context(raw_text: str) -> str:
         return cleaned
 
     sections = _split_into_sections(cleaned, settings.condensed_section_char_size)
-    logger.info("[context_builder] Condensing %d sections", len(sections))
+    logger.info(
+        "[context_builder] Condensing %d sections (up to %d concurrently)",
+        len(sections),
+        MAX_CONCURRENT_CONDENSATIONS,
+    )
 
-    condensed_parts: List[str] = []
-    for i, section in enumerate(sections):
-        try:
-            condensed = await _condense_section(section, i, len(sections), settings.condensed_section_target_words)
-            if condensed:
-                condensed_parts.append(condensed)
-        except Exception as exc:
-            logger.error("[context_builder] Failed to condense section %d: %s", i, exc)
-            condensed_parts.append(section[: settings.condensed_section_target_words * 6])
+    # Condense sections concurrently (bounded by a semaphore) instead of
+    # awaiting them one-by-one. asyncio.gather preserves input order, so the
+    # combined summary still reads front-to-back correctly.
+    semaphore = asyncio.Semaphore(MAX_CONCURRENT_CONDENSATIONS)
+    tasks = [
+        _condense_section_bounded(semaphore, section, i, len(sections), settings.condensed_section_target_words)
+        for i, section in enumerate(sections)
+    ]
+    condensed_parts = await asyncio.gather(*tasks)
 
-    combined = "\n\n".join(condensed_parts)
+    combined = "\n\n".join(part for part in condensed_parts if part)
 
     if len(combined) > settings.direct_context_char_budget:
         combined = combined[: settings.direct_context_char_budget]

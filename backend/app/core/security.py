@@ -1,3 +1,4 @@
+import asyncio
 import re
 from datetime import datetime, timedelta, timezone
 
@@ -41,3 +42,17 @@ def create_access_token(user_id: str) -> str:
 def decode_access_token(token: str) -> dict:
     settings = get_settings()
     return jwt.decode(token, settings.jwt_secret, algorithms=["HS256"])
+
+
+# --- Async wrappers -------------------------------------------------------
+# bcrypt hashing/verification is CPU-bound (~50-100ms). Running it inline in
+# an async request handler blocks the event loop for every other in-flight
+# request during that window. Offload to a thread instead.
+
+
+async def hash_password_async(password: str) -> str:
+    return await asyncio.to_thread(hash_password, password)
+
+
+async def verify_password_async(password: str, password_hash: str) -> bool:
+    return await asyncio.to_thread(verify_password, password, password_hash)

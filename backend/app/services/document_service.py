@@ -9,7 +9,7 @@ from app.core.database import get_database
 from app.core.exceptions import BadRequestError, ForbiddenError, NotFoundError
 from app.core.mongo_utils import serialize_doc, to_object_id
 from app.services import context_builder, embedder, extractor, vector_store
-from app.services.cloudinary_client import delete_file, upload_file
+from app.services.cloudinary_client import delete_file_async, upload_file_async
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +47,7 @@ async def create_document_from_upload(user_id: str, content: bytes, filename: st
 
     await enforce_document_limit(user_id)
 
-    upload_result = upload_file(content, filename, mimetype)
+    upload_result = await upload_file_async(content, filename, mimetype)
     db = get_database()
     now = datetime.now(timezone.utc)
     doc = {
@@ -143,7 +143,7 @@ async def process_document(document_id: str) -> None:
         return
 
     try:
-        raw_text, page_count = extractor.extract_text(
+        raw_text, page_count = await extractor.extract_text_async(
             source_type=doc["sourceType"],
             source_url=doc.get("sourceUrl"),
             raw_text=doc.get("rawText"),
@@ -157,10 +157,10 @@ async def process_document(document_id: str) -> None:
         chunks = chunk_document(raw_text, str(object_id), doc["userId"])
         if chunks:
             texts = [c["text"] for c in chunks]
-            vectors = embedder.embed_texts(texts)
+            vectors = await embedder.embed_texts_async(texts)
             for chunk, vector in zip(chunks, vectors):
                 chunk["vector"] = vector
-            vector_store.upsert_chunks(chunks)
+            await vector_store.upsert_chunks_async(chunks)
 
         settings = get_settings()
         immediate_context = (
@@ -253,9 +253,9 @@ async def delete_document(user_id: str, document_id: str) -> None:
     object_id = doc["_id"]
 
     if doc.get("cloudinaryId"):
-        delete_file(doc["cloudinaryId"], doc.get("cloudinaryResourceType") or "raw")
+        await delete_file_async(doc["cloudinaryId"], doc.get("cloudinaryResourceType") or "raw")
 
-    vector_store.delete_document_vectors(str(object_id))
+    await vector_store.delete_document_vectors_async(str(object_id))
     await db.messages.delete_many({"documentId": str(object_id)})
     await db.chunks.delete_many({"documentId": str(object_id)})
     await db.documents.delete_one({"_id": object_id})

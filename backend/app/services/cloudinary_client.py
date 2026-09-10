@@ -1,3 +1,5 @@
+import asyncio
+
 import cloudinary
 import cloudinary.exceptions
 import cloudinary.uploader
@@ -68,3 +70,17 @@ def delete_file(public_id: str, resource_type: str = "raw") -> None:
         cloudinary.uploader.destroy(public_id, resource_type=resource_type)
     except Exception:
         pass
+
+
+# --- Async wrappers -------------------------------------------------------
+# cloudinary's SDK is fully synchronous (blocking network I/O). For a large
+# (up to 50MB) file this upload can take several seconds - run it in a
+# thread so it never freezes the event loop for every other user.
+
+
+async def upload_file_async(content: bytes, filename: str, mimetype: str) -> dict:
+    return await asyncio.to_thread(upload_file, content, filename, mimetype)
+
+
+async def delete_file_async(public_id: str, resource_type: str = "raw") -> None:
+    await asyncio.to_thread(delete_file, public_id, resource_type)

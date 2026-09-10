@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     embedding_dimension: int = int(os.getenv("EMBEDDING_DIMENSION", "384"))
     embedding_model: str = os.getenv("EMBEDDING_MODEL", "all-MiniLM-L6-v2")
 
-    max_upload_size_mb: int = int(os.getenv("MAX_UPLOAD_SIZE_MB", "10"))
+    max_upload_size_mb: int = int(os.getenv("MAX_UPLOAD_SIZE_MB", "50"))
     chunk_size: int = int(os.getenv("CHUNK_SIZE", "1000"))
     chunk_overlap: int = int(os.getenv("CHUNK_OVERLAP", "150"))
     retrieval_top_k: int = int(os.getenv("RETRIEVAL_TOP_K", "6"))
