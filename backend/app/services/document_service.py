@@ -41,22 +41,28 @@ async def enforce_document_limit(user_id: str) -> None:
 
 
 async def create_document_from_upload(user_id: str, content: bytes, filename: str, mimetype: str) -> dict:
+    """Creates the document record immediately (a single fast Mongo insert)
+    WITHOUT waiting for the Cloudinary upload. This is what lets the upload
+    API respond in milliseconds instead of waiting for a (potentially slow,
+    for a 50MB file) round trip to Cloudinary - the frontend can navigate to
+    the chat screen right away and show a "processing" state while
+    upload_and_process() does the actual upload + extraction in the
+    background."""
     source_type = MIME_TO_SOURCE_TYPE.get(mimetype)
     if not source_type:
         raise BadRequestError("Unsupported file type")
 
     await enforce_document_limit(user_id)
 
-    upload_result = await upload_file_async(content, filename, mimetype)
     db = get_database()
     now = datetime.now(timezone.utc)
     doc = {
         "userId": user_id,
         "title": _title_from_filename(filename),
         "sourceType": source_type,
-        "sourceUrl": upload_result["url"],
-        "cloudinaryId": upload_result["public_id"],
-        "cloudinaryResourceType": upload_result["resource_type"],
+        "sourceUrl": None,
+        "cloudinaryId": None,
+        "cloudinaryResourceType": None,
         "mimeType": mimetype,
         "status": "processing",
         "rawText": None,
@@ -71,6 +77,42 @@ async def create_document_from_upload(user_id: str, content: bytes, filename: st
     result = await db.documents.insert_one(doc)
     doc["_id"] = result.inserted_id
     return doc
+
+
+async def upload_and_process(document_id: str, content: bytes, filename: str, mimetype: str) -> None:
+    """Background-task companion to create_document_from_upload: does the
+    actual Cloudinary upload, saves the resulting URL onto the document,
+    then runs the normal extract/chunk/embed pipeline."""
+    db = get_database()
+    object_id = to_object_id(document_id)
+    try:
+        upload_result = await upload_file_async(content, filename, mimetype)
+    except Exception as exc:
+        logger.error("[document_service] Cloudinary upload failed for %s: %s", document_id, exc)
+        await db.documents.update_one(
+            {"_id": object_id},
+            {
+                "$set": {
+                    "status": "error",
+                    "errorMessage": str(exc)[:500],
+                    "updatedAt": datetime.now(timezone.utc),
+                }
+            },
+        )
+        return
+
+    await db.documents.update_one(
+        {"_id": object_id},
+        {
+            "$set": {
+                "sourceUrl": upload_result["url"],
+                "cloudinaryId": upload_result["public_id"],
+                "cloudinaryResourceType": upload_result["resource_type"],
+                "updatedAt": datetime.now(timezone.utc),
+            }
+        },
+    )
+    await process_document(document_id)
 
 
 async def create_document_from_url(user_id: str, url: str, title: Optional[str]) -> dict:

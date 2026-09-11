@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, ChevronDown, FileText, GraduationCap, Home, Send, Square, X } from "lucide-react";
+import { ChevronDown, FileText, GraduationCap, Home, Send, Square } from "lucide-react";
 import { chatAPI, documentAPI, examAPI, getApiErrorMessage, streamChatMessage } from "@/lib/api";
 import { DOCUMENT_TYPE_META, formatWords } from "@/lib/utils";
 import type { ChatMessage, Document } from "@/types";
@@ -16,8 +16,14 @@ const AUTO_SUMMARY_PROMPT = "Summarize this document for me.";
 // (bigger PDFs, OCR on images) enough headroom to finish processing
 // before the UI gives up and shows an error.
 const MAX_POLL_ATTEMPTS = 150;
-const MIN_REVEAL_CHARS_PER_FRAME = 2;
-const REVEAL_CATCHUP_DIVISOR = 8;
+const MIN_REVEAL_CHARS_PER_FRAME = 3;
+// Groq streams tokens very fast, so the raw text can arrive in big bursts.
+// Below this backlog we reveal at a fixed, steady "typewriter" pace so it
+// always feels animated. Only once the backlog grows past this (a very
+// long response arriving faster than we can type it out) do we speed up
+// to catch up, so nothing ever lags for multiple seconds.
+const CATCHUP_BACKLOG_THRESHOLD = 500;
+const REVEAL_CATCHUP_DIVISOR = 25;
 
 const subscribeNever = () => () => {};
 function useHasMounted(): boolean {
@@ -197,7 +203,10 @@ export default function DocumentChat({
         const full = fullTextRef.current;
         if (prev.length >= full.length) return prev;
         const backlog = full.length - prev.length;
-        const step = Math.max(MIN_REVEAL_CHARS_PER_FRAME, Math.ceil(backlog / REVEAL_CATCHUP_DIVISOR));
+        const step =
+          backlog > CATCHUP_BACKLOG_THRESHOLD
+            ? Math.ceil(backlog / REVEAL_CATCHUP_DIVISOR)
+            : MIN_REVEAL_CHARS_PER_FRAME;
         return full.slice(0, prev.length + step);
       });
       revealFrameRef.current = requestAnimationFrame(tick);
@@ -359,7 +368,7 @@ export default function DocumentChat({
   const containerClass =
     variant === "overlay"
       ? "fixed inset-0 flex flex-col bg-black"
-      : "flex min-h-screen flex-col bg-black";
+      : "relative flex min-h-screen flex-col bg-black";
 
   const content = (
     <motion.div
@@ -369,20 +378,22 @@ export default function DocumentChat({
       animate={{ opacity: 1, scale: 1, y: 0 }}
       transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
     >
-      <div className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-white/10 bg-black/95 px-4 py-3 backdrop-blur">
-        <button
-          onClick={onClose}
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white/60 transition-colors hover:bg-white/10 hover:text-white"
-          aria-label="Close"
-        >
-          {variant === "overlay" ? <X size={17} /> : <ArrowLeft size={17} />}
-        </button>
-        <div className="min-w-0 flex-1 text-center">
-          <p className="truncate text-[13.5px] font-semibold text-white">{doc?.title ?? "SnipixAI"}</p>
-        </div>
+      <div className="absolute right-3 top-3 z-30 flex items-center gap-2">
+        {doc?.status === "ready" && (
+          <button
+            type="button"
+            onClick={() => setExamComposerOpen((v) => !v)}
+            title="Generate an exam"
+            aria-label="Generate exam"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-black/70 backdrop-blur transition-colors hover:bg-white/10"
+            style={examComposerOpen ? { color: "#F7374F", borderColor: "rgba(247,55,79,0.4)" } : { color: "rgba(255,255,255,0.7)" }}
+          >
+            <GraduationCap size={17} />
+          </button>
+        )}
         <button
           onClick={() => router.push("/")}
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white/60 transition-colors hover:bg-white/10 hover:text-white"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-black/70 text-white/70 backdrop-blur transition-colors hover:bg-white/10 hover:text-white"
           aria-label="Home"
           title="Home"
         >
@@ -391,7 +402,7 @@ export default function DocumentChat({
       </div>
 
       <div ref={scrollRef} onScroll={handleScroll} className="relative flex-1 overflow-y-auto">
-        <div className="mx-auto flex max-w-[900px] flex-col gap-6 px-4 py-6 sm:px-8">
+        <div className="mx-auto flex max-w-[900px] flex-col gap-6 px-4 pb-6 pt-14 sm:px-8">
           {docLoadError && <DocErrorState message={docLoadError} onClose={onClose} />}
           {!docLoadError && doc?.status === "error" && (
             <DocErrorState message={doc.errorMessage || "Something went wrong while processing this document."} onClose={onClose} />
@@ -470,20 +481,7 @@ export default function DocumentChat({
             {examError && <p className="mb-2 text-[12px] text-white/50">{examError}</p>}
             {chatError && <p className="mb-2 text-[12px] text-white/50">{chatError}</p>}
 
-            <div className="flex items-end gap-2 rounded-2xl border border-white/15 bg-white/[0.03] px-2.5 py-2 transition-colors focus-within:border-white/30">
-              <button
-                type="button"
-                onClick={() => setExamComposerOpen((v) => !v)}
-                title="Generate an exam"
-                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors"
-                style={
-                  examComposerOpen
-                    ? { background: "rgba(247,55,79,0.16)", color: "#F7374F" }
-                    : { color: "rgba(247,55,79,0.65)" }
-                }
-              >
-                <GraduationCap size={17} />
-              </button>
+            <div className="flex items-end gap-2 rounded-2xl border border-white/15 bg-white/[0.03] px-3.5 py-2 transition-colors focus-within:border-white/30">
               <textarea
                 ref={textareaRef}
                 value={input}
@@ -518,7 +516,6 @@ export default function DocumentChat({
                 </button>
               )}
             </div>
-            <p className="mt-2 text-center text-[10.5px] text-white/25">AI-generated content may be inaccurate. Verify important information.</p>
           </div>
         </div>
       )}
