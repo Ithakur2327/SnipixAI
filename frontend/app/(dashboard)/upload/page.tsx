@@ -62,7 +62,17 @@ export default function UploadPage() {
   };
 
   return (
-    <div style={{ maxWidth: "680px", margin: "0 auto", padding: "40px 24px" }}>
+    <div className="snx-upload-page" style={{ maxWidth: "680px", margin: "0 auto", padding: "40px 24px" }}>
+      <style>{`
+        @media (max-width: 480px) {
+          .snx-upload-page { padding: 24px 16px !important; }
+          .snx-method-grid { gap: 8px !important; }
+          .snx-method-card { padding: 12px 10px !important; }
+          .snx-method-card .m-icon { font-size: 18px !important; }
+          .snx-method-card .m-label { font-size: 11px !important; margin-top: 6px !important; }
+          .snx-method-card .m-desc { display: none; }
+        }
+      `}</style>
       <div style={{ marginBottom: "32px" }}>
         <h2 style={{ fontSize: "22px", fontWeight: 800, color: "#FFFFFF", letterSpacing: "-0.5px", marginBottom: "4px" }}>
           New Summary
@@ -70,11 +80,12 @@ export default function UploadPage() {
         <p style={{ fontSize: "13px", color: "rgba(255,255,255,0.35)" }}>Choose your input method</p>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: "12px", marginBottom: "24px" }}>
+      <div className="snx-method-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: "12px", marginBottom: "24px" }}>
         {METHODS.map((m) => (
           <button
             key={m.id}
             onClick={() => setMethod(m.id)}
+            className="snx-method-card"
             style={{
               borderRadius: "14px",
               padding: "16px",
@@ -85,9 +96,9 @@ export default function UploadPage() {
               transition: "all 0.15s",
             }}
           >
-            <span style={{ fontSize: "22px" }}>{m.icon}</span>
-            <p style={{ fontSize: "12px", fontWeight: 700, color: "#FFFFFF", marginTop: "8px", marginBottom: "2px" }}>{m.label}</p>
-            <p style={{ fontSize: "11px", color: "rgba(255,255,255,0.35)" }}>{m.desc}</p>
+            <span className="m-icon" style={{ fontSize: "22px" }}>{m.icon}</span>
+            <p className="m-label" style={{ fontSize: "12px", fontWeight: 700, color: "#FFFFFF", marginTop: "8px", marginBottom: "2px" }}>{m.label}</p>
+            <p className="m-desc" style={{ fontSize: "11px", color: "rgba(255,255,255,0.35)" }}>{m.desc}</p>
           </button>
         ))}
       </div>

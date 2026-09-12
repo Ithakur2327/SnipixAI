@@ -21,6 +21,18 @@ class Settings(BaseSettings):
 
     groq_api_key: str = os.getenv("GROQ_API_KEY", "")
     groq_model: str = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
+    # openai/gpt-oss-120b is a reasoning model that, by default, spends a
+    # chunk of every request "thinking" before it writes the visible
+    # answer (default reasoning_effort is "medium" on Groq). That thinking
+    # time is invisible to the user but adds real seconds to every
+    # response, and - worse - the model sometimes puts its actual answer
+    # entirely inside the hidden reasoning content instead of the visible
+    # one, especially in JSON mode, which is what was breaking exam
+    # generation. "low" effort + "hidden" reasoning format cuts that
+    # thinking time down and guarantees only the final answer comes back
+    # in the field we actually read.
+    groq_reasoning_effort: str = os.getenv("GROQ_REASONING_EFFORT", "low")
+    groq_reasoning_format: str = os.getenv("GROQ_REASONING_FORMAT", "hidden")
 
     pinecone_api_key: str = os.getenv("PINECONE_API_KEY", "")
     pinecone_index_name: str = os.getenv("PINECONE_INDEX_NAME", "snipixai")
@@ -34,9 +46,9 @@ class Settings(BaseSettings):
     chunk_overlap: int = int(os.getenv("CHUNK_OVERLAP", "150"))
     retrieval_top_k: int = int(os.getenv("RETRIEVAL_TOP_K", "6"))
 
-    direct_context_char_budget: int = int(os.getenv("DIRECT_CONTEXT_CHAR_BUDGET", "42000"))
-    condensed_section_char_size: int = int(os.getenv("CONDENSED_SECTION_CHAR_SIZE", "9000"))
-    condensed_section_target_words: int = int(os.getenv("CONDENSED_SECTION_TARGET_WORDS", "220"))
+    direct_context_char_budget: int = int(os.getenv("DIRECT_CONTEXT_CHAR_BUDGET", "100000"))
+    condensed_section_char_size: int = int(os.getenv("CONDENSED_SECTION_CHAR_SIZE", "12000"))
+    condensed_section_target_words: int = int(os.getenv("CONDENSED_SECTION_TARGET_WORDS", "350"))
     chat_history_turns: int = int(os.getenv("CHAT_HISTORY_TURNS", "8"))
     max_output_tokens: int = int(os.getenv("MAX_OUTPUT_TOKENS", "3072"))
     exam_max_output_tokens: int = int(os.getenv("EXAM_MAX_OUTPUT_TOKENS", "4096"))

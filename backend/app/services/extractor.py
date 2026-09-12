@@ -86,6 +86,36 @@ async def extract_text_async(
     return await asyncio.to_thread(extract_text, source_type, source_url, raw_text)
 
 
+def extract_text_from_bytes(source_type: str, content: bytes) -> Tuple[str, Optional[int]]:
+    """Extract text straight from file bytes we already hold in memory,
+    with no network fetch at all. Used for uploaded files: previously we'd
+    upload the bytes to Cloudinary and then immediately download them
+    right back down again just to extract text - a fully redundant round
+    trip that was one of the biggest chunks of "time to ready" for a
+    typical upload."""
+    try:
+        buffer = BytesIO(content)
+        if source_type == "pdf":
+            return _extract_pdf(buffer)
+        elif source_type == "docx":
+            return _extract_docx(buffer), None
+        elif source_type == "ppt":
+            return _extract_pptx(buffer), None
+        elif source_type == "txt":
+            return buffer.read().decode("utf-8", errors="ignore").strip(), None
+        elif source_type == "image":
+            return _extract_image_from_bytes(content), None
+        else:
+            raise ValueError(f"Unsupported source type: {source_type}")
+    except Exception as exc:
+        logger.error("[extractor] Error extracting %s from uploaded bytes: %s", source_type, exc)
+        raise
+
+
+async def extract_text_from_bytes_async(source_type: str, content: bytes) -> Tuple[str, Optional[int]]:
+    return await asyncio.to_thread(extract_text_from_bytes, source_type, content)
+
+
 def _extract_pdf(buffer: BytesIO) -> Tuple[str, int]:
     from pypdf import PdfReader
 
@@ -187,6 +217,12 @@ def _extract_url(url: str) -> str:
 
 
 def _extract_image(url: str) -> str:
+    response = requests.get(url, timeout=30)
+    response.raise_for_status()
+    return _extract_image_from_bytes(response.content)
+
+
+def _extract_image_from_bytes(content: bytes) -> str:
     try:
         import pytesseract
         from PIL import Image
@@ -197,9 +233,7 @@ def _extract_image(url: str) -> str:
             "Also install Tesseract OCR: https://github.com/tesseract-ocr/tesseract"
         )
 
-    response = requests.get(url, timeout=30)
-    response.raise_for_status()
-    img = Image.open(BytesIO(response.content))
+    img = Image.open(BytesIO(content))
     text = pytesseract.image_to_string(img).strip()
 
     if not text:

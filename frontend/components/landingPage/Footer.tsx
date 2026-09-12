@@ -6,7 +6,7 @@ export default function Footer() {
       style={{
         background: "#0A0A0F",
         borderTop: "1px solid rgba(255,255,255,0.05)",
-        padding: "28px 32px",
+        padding: "clamp(18px,4vw,28px) clamp(16px,4vw,32px)",
         animation: "snxFadeUp 0.64s cubic-bezier(0.34, 1.56, 0.64, 1) 0.8s both",
       }}
     >
@@ -21,8 +21,10 @@ export default function Footer() {
           maxWidth: "1160px",
           margin: "0 auto",
           display: "flex",
+          flexWrap: "wrap",
           alignItems: "center",
           justifyContent: "space-between",
+          gap: "8px",
         }}
       >
         <span style={{ fontSize: "14px", fontWeight: 700, color: "#FFFFFF" }}>

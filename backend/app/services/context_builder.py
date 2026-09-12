@@ -90,11 +90,17 @@ async def build_document_context(raw_text: str) -> str:
         for i, section in enumerate(sections)
     ]
     condensed_parts = await asyncio.gather(*tasks)
-
-    combined = "\n\n".join(part for part in condensed_parts if part)
+    parts = [part for part in condensed_parts if part]
+    combined = "\n\n".join(parts)
 
     if len(combined) > settings.direct_context_char_budget:
-        combined = combined[: settings.direct_context_char_budget]
+        # Only the most extreme documents hit this now that the budget is
+        # much larger. Trim proportionally across every section instead of
+        # just chopping off the tail, so every topic keeps at least some
+        # representation instead of later ones disappearing entirely.
+        overflow_ratio = settings.direct_context_char_budget / len(combined)
+        trimmed = [part[: max(40, int(len(part) * overflow_ratio))] for part in parts]
+        combined = "\n\n".join(trimmed)
 
     return combined
 

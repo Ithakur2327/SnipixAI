@@ -49,6 +49,7 @@ export default function Navbar() {
   const [currentHash, setCurrentHash] = useState("");
   const [scrolled,    setScrolled]    = useState(false);
   const [dropOpen,    setDropOpen]    = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isMobile,    setIsMobile]    = useState(false);
   const [isTablet,    setIsTablet]    = useState(false);
 
@@ -83,11 +84,14 @@ export default function Navbar() {
     pathname === "/" && currentHash === "#about" ? "About" : pathname.startsWith("/library") ? "Library" : "Home";
 
   useEffect(() => {
-    if (!dropOpen) return;
-    const fn = () => setDropOpen(false);
+    if (!dropOpen && !mobileMenuOpen) return;
+    const fn = () => {
+      setDropOpen(false);
+      setMobileMenuOpen(false);
+    };
     window.addEventListener("click", fn);
     return () => window.removeEventListener("click", fn);
-  }, [dropOpen]);
+  }, [dropOpen, mobileMenuOpen]);
 
   useEffect(() => {
     const checkSize = () => {
@@ -120,6 +124,7 @@ export default function Navbar() {
       return;
     }
     router.push(link.href);
+    setMobileMenuOpen(false);
   };
 
   const handleLogout = () => {
@@ -254,6 +259,41 @@ export default function Navbar() {
           border-radius: 6px; padding: 2px 7px;
         }
 
+        .snx-hamburger-wrap { display: none; position: relative; }
+        .snx-hamburger {
+          display: flex;
+          align-items: center; justify-content: center;
+          width: 34px; height: 34px; border-radius: 9px;
+          background: rgba(255,255,255,0.06);
+          border: 1px solid rgba(255,255,255,0.1);
+          color: rgba(255,255,255,0.75);
+          cursor: pointer; outline: none; flex-shrink: 0;
+          transition: background 0.15s ease, border-color 0.15s ease;
+        }
+        .snx-hamburger:hover { background: rgba(247,55,79,0.08); border-color: rgba(247,55,79,0.25); }
+
+        .snx-mobile-menu {
+          position: absolute; top: calc(100% + 10px); right: 0;
+          background: #050505; border: 1px solid rgba(255,255,255,0.09);
+          border-radius: 14px; padding: 5px; min-width: 190px;
+          box-shadow: 0 20px 50px rgba(0,0,0,0.6), 0 0 0 1px rgba(0,0,0,0.2);
+          z-index: 100;
+          animation: dropIn 0.18s cubic-bezier(0.16,1,0.3,1) forwards;
+        }
+        .snx-mobile-menu-item {
+          display: flex; align-items: center; gap: 9px; width: 100%;
+          padding: 10px 11px; border-radius: 9px; border: none; background: transparent;
+          cursor: pointer; font-size: 13.5px; color: rgba(255,255,255,0.7);
+          transition: background 0.13s ease, color 0.13s ease;
+          font-family: var(--font-inter), sans-serif; text-align: left;
+        }
+        .snx-mobile-menu-item:hover, .snx-mobile-menu-item.active { background: rgba(255,255,255,0.06); color: #fff; }
+        .snx-mobile-menu-item .item-icon { opacity: 0.55; flex-shrink: 0; }
+
+        @media (max-width: 680px) {
+          .snx-hamburger-wrap { display: block; }
+        }
+
         @media (max-width: 980px) {
           .snx-nav { height: 64px !important; }
           .snx-nav-inner { padding: 0 18px !important; height: 64px !important; flex-direction: row !important; align-items: center !important; }
@@ -356,6 +396,32 @@ export default function Navbar() {
           </div>
 
           <div className="snx-right-wrap" style={{ display: "flex", alignItems: "center", gap: "10px", flexShrink: 0 }}>
+            <div className="snx-hamburger-wrap">
+              <button
+                className="snx-hamburger"
+                onClick={(e) => { e.stopPropagation(); setMobileMenuOpen((v) => !v); }}
+                aria-label="Menu"
+                title="Menu"
+              >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path d="M2.5 4.5h11M2.5 8h11M2.5 11.5h11" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                </svg>
+              </button>
+              {mobileMenuOpen && (
+                <div className="snx-mobile-menu" onClick={(e) => e.stopPropagation()}>
+                  {LINKS.map((link) => (
+                    <button
+                      key={link.label}
+                      className={`snx-mobile-menu-item${active === link.label ? " active" : ""}`}
+                      onClick={() => handleNav(link)}
+                    >
+                      <span className="item-icon">{link.icon}</span>
+                      {link.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
             {isAuthenticated && user ? (
               <div style={{ position: "relative" }}>
                 <button

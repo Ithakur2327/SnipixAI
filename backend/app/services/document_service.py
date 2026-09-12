@@ -80,39 +80,46 @@ async def create_document_from_upload(user_id: str, content: bytes, filename: st
 
 
 async def upload_and_process(document_id: str, content: bytes, filename: str, mimetype: str) -> None:
-    """Background-task companion to create_document_from_upload: does the
-    actual Cloudinary upload, saves the resulting URL onto the document,
-    then runs the normal extract/chunk/embed pipeline."""
+    """Background companion to create_document_from_upload. Extracts text
+    directly from the bytes we already hold in memory - no need to wait
+    for, or re-fetch from, Cloudinary - while the Cloudinary upload
+    (needed only for permanent storage/display, not for reading the
+    document) happens fully in parallel instead of before it."""
     db = get_database()
     object_id = to_object_id(document_id)
-    try:
-        upload_result = await upload_file_async(content, filename, mimetype)
-    except Exception as exc:
-        logger.error("[document_service] Cloudinary upload failed for %s: %s", document_id, exc)
-        await db.documents.update_one(
-            {"_id": object_id},
-            {
-                "$set": {
-                    "status": "error",
-                    "errorMessage": str(exc)[:500],
-                    "updatedAt": datetime.now(timezone.utc),
-                }
-            },
-        )
+    doc = await db.documents.find_one({"_id": object_id})
+    if not doc:
         return
 
-    await db.documents.update_one(
-        {"_id": object_id},
-        {
-            "$set": {
-                "sourceUrl": upload_result["url"],
-                "cloudinaryId": upload_result["public_id"],
-                "cloudinaryResourceType": upload_result["resource_type"],
-                "updatedAt": datetime.now(timezone.utc),
-            }
-        },
-    )
-    await process_document(document_id)
+    async def _store_in_cloudinary() -> None:
+        try:
+            upload_result = await upload_file_async(content, filename, mimetype)
+            await db.documents.update_one(
+                {"_id": object_id},
+                {
+                    "$set": {
+                        "sourceUrl": upload_result["url"],
+                        "cloudinaryId": upload_result["public_id"],
+                        "cloudinaryResourceType": upload_result["resource_type"],
+                        "updatedAt": datetime.now(timezone.utc),
+                    }
+                },
+            )
+        except Exception as exc:
+            # Storage failing doesn't need to fail the whole document - the
+            # user can still read/chat with the text already extracted
+            # below; they just won't have a stored file link to reopen.
+            logger.error("[document_service] Cloudinary upload failed for %s: %s", document_id, exc)
+
+    cloudinary_task = asyncio.create_task(_store_in_cloudinary())
+
+    try:
+        raw_text, page_count = await extractor.extract_text_from_bytes_async(doc["sourceType"], content)
+        await _finalize_document(object_id, doc, raw_text, page_count)
+    except Exception as exc:
+        await _mark_document_failed(object_id, document_id, exc)
+
+    await cloudinary_task
 
 
 async def create_document_from_url(user_id: str, url: str, title: Optional[str]) -> dict:
@@ -178,6 +185,9 @@ async def create_document_from_text(user_id: str, text: str, title: Optional[str
 
 
 async def process_document(document_id: str) -> None:
+    """Used for URL and pasted-text documents, which need a network fetch
+    (or nothing at all, for pasted text) rather than bytes already held in
+    memory. See upload_and_process for the file-upload path."""
     db = get_database()
     object_id = to_object_id(document_id)
     doc = await db.documents.find_one({"_id": object_id})
@@ -190,70 +200,91 @@ async def process_document(document_id: str) -> None:
             source_url=doc.get("sourceUrl"),
             raw_text=doc.get("rawText"),
         )
-        raw_text = (raw_text or "").strip()
-        if not raw_text:
-            raise ValueError("No readable text could be extracted from this source.")
-
-        word_count = len(raw_text.split())
-
-        chunks = chunk_document(raw_text, str(object_id), doc["userId"])
-        if chunks:
-            texts = [c["text"] for c in chunks]
-            vectors = await embedder.embed_texts_async(texts)
-            for chunk, vector in zip(chunks, vectors):
-                chunk["vector"] = vector
-            await vector_store.upsert_chunks_async(chunks)
-
-        settings = get_settings()
-        immediate_context = (
-            raw_text if len(raw_text) <= settings.direct_context_char_budget else None
-        )
-
-        await db.documents.update_one(
-            {"_id": object_id},
-            {
-                "$set": {
-                    "rawText": raw_text,
-                    "wordCount": word_count,
-                    "pageCount": page_count,
-                    "condensedContext": immediate_context,
-                    "condensedReady": immediate_context is not None,
-                    "status": "ready",
-                    "errorMessage": None,
-                    "updatedAt": datetime.now(timezone.utc),
-                }
-            },
-        )
-        logger.info("[document_service] Document %s ready for chat", document_id)
-
-        if immediate_context is None:
-            asyncio.create_task(_condense_in_background(object_id, raw_text))
-
+        await _finalize_document(object_id, doc, raw_text, page_count)
     except Exception as exc:
-        logger.error("[document_service] Failed to process document %s: %s", document_id, exc)
-        await db.documents.update_one(
-            {"_id": object_id},
-            {
-                "$set": {
-                    "status": "error",
-                    "errorMessage": str(exc)[:500],
-                    "updatedAt": datetime.now(timezone.utc),
-                }
-            },
-        )
+        await _mark_document_failed(object_id, document_id, exc)
 
 
-async def _condense_in_background(object_id, raw_text: str) -> None:
+async def _finalize_document(object_id, doc: dict, raw_text: Optional[str], page_count: Optional[int]) -> None:
+    """Shared final stage for every document source (upload, URL, pasted
+    text): chunk, condense (this alone gates "ready"), mark the document
+    ready, then kick off RAG indexing in the true background.
+
+    Condensation always fully resolves before "ready": for anything under
+    the direct-context budget this is instant (the raw text is used
+    as-is), and for larger documents it runs as concurrent LLM calls (see
+    context_builder.MAX_CONCURRENT_CONDENSATIONS), so every topic in the
+    document is covered from the very first response onward - there's no
+    "ready but not really summarized yet" state.
+
+    RAG indexing (embedding each chunk + upserting to Pinecone) only
+    sharpens *follow-up* answers with literal excerpts - the first
+    response reads condensedContext instead - and MongoDB never stores the
+    chunks itself (only Pinecone does), so nothing here needs to wait on
+    it. Backgrounding it removes what was previously the single biggest
+    chunk of "time to ready" for a typical document, since it's genuine
+    CPU work.
+    """
     db = get_database()
+    document_id = str(object_id)
+    raw_text = (raw_text or "").strip()
+    if not raw_text:
+        raise ValueError("No readable text could be extracted from this source.")
+
+    word_count = len(raw_text.split())
+    chunks = chunk_document(raw_text, document_id, doc["userId"])
+    condensed_context = await context_builder.build_document_context(raw_text)
+
+    await db.documents.update_one(
+        {"_id": object_id},
+        {
+            "$set": {
+                "rawText": raw_text,
+                "wordCount": word_count,
+                "pageCount": page_count,
+                "condensedContext": condensed_context,
+                "condensedReady": True,
+                "status": "ready",
+                "errorMessage": None,
+                "updatedAt": datetime.now(timezone.utc),
+            }
+        },
+    )
+    logger.info("[document_service] Document %s ready for chat", document_id)
+
+    if chunks:
+        asyncio.create_task(_index_chunks_background(chunks, document_id))
+
+
+async def _mark_document_failed(object_id, document_id: str, exc: Exception) -> None:
+    db = get_database()
+    logger.error("[document_service] Failed to process document %s: %s", document_id, exc)
+    await db.documents.update_one(
+        {"_id": object_id},
+        {
+            "$set": {
+                "status": "error",
+                "errorMessage": str(exc)[:500],
+                "updatedAt": datetime.now(timezone.utc),
+            }
+        },
+    )
+
+
+async def _index_chunks_background(chunks: list[dict], document_id: str) -> None:
+    """Embeds and upserts a document's chunks into Pinecone after the
+    document is already marked ready. Sharpens follow-up-question answers
+    with literal excerpts; not required for the first response, which
+    reads condensedContext instead."""
     try:
-        condensed = await context_builder.build_document_context(raw_text)
-        await db.documents.update_one(
-            {"_id": object_id},
-            {"$set": {"condensedContext": condensed, "condensedReady": True, "updatedAt": datetime.now(timezone.utc)}},
-        )
-        logger.info("[document_service] Condensation ready for %s", object_id)
+        texts = [c["text"] for c in chunks]
+        vectors = await embedder.embed_texts_async(texts)
+        for chunk, vector in zip(chunks, vectors):
+            chunk["vector"] = vector
+        await vector_store.upsert_chunks_async(chunks)
+        logger.info("[document_service] RAG index ready for %s", document_id)
     except Exception as exc:
-        logger.error("[document_service] Background condensation failed for %s: %s", object_id, exc)
+        logger.error("[document_service] Background RAG indexing failed for %s: %s", document_id, exc)
 
 
 def chunk_document(raw_text: str, document_id: str, user_id: str) -> list[dict]:

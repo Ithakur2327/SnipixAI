@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronDown, FileText, GraduationCap, Home, Send, Square } from "lucide-react";
+import { ChevronDown, ClipboardList, FileText, Home, Loader2, Send, Square } from "lucide-react";
 import { chatAPI, documentAPI, examAPI, getApiErrorMessage, streamChatMessage } from "@/lib/api";
 import { DOCUMENT_TYPE_META, formatWords } from "@/lib/utils";
 import type { ChatMessage, Document } from "@/types";
@@ -12,10 +12,11 @@ import ExamCard from "./ExamCard";
 import ExamComposer, { type ExamFormValues } from "./ExamComposer";
 
 const AUTO_SUMMARY_PROMPT = "Summarize this document for me.";
-// 1.2s per attempt. Bumped from 90 (108s) to give larger 50MB uploads
-// (bigger PDFs, OCR on images) enough headroom to finish processing
-// before the UI gives up and shows an error.
-const MAX_POLL_ATTEMPTS = 150;
+// 500ms per attempt (was 1.2s) so the UI notices "ready" as close to the
+// instant it actually happens as possible. Bumped the attempt count to
+// match so the overall ~3 minute ceiling for very large 50MB uploads is
+// unchanged.
+const MAX_POLL_ATTEMPTS = 360;
 const MIN_REVEAL_CHARS_PER_FRAME = 3;
 // Groq streams tokens very fast, so the raw text can arrive in big bursts.
 // Below this backlog we reveal at a fixed, steady "typewriter" pace so it
@@ -162,7 +163,7 @@ export default function DocumentChat({
         clearInterval(interval);
         setDoc((prev) => (prev ? { ...prev, status: "error", errorMessage: "This is taking longer than expected. Please try again." } : prev));
       }
-    }, 1200);
+    }, 500);
     return () => clearInterval(interval);
   }, [doc, documentId]);
 
@@ -364,11 +365,13 @@ export default function DocumentChat({
   }
 
   const showThread = !docLoadError && doc && doc.status !== "error";
+  const isReady = doc?.status === "ready";
+  const isProcessing = doc?.status === "processing";
 
   const containerClass =
     variant === "overlay"
       ? "fixed inset-0 flex flex-col bg-black"
-      : "relative flex min-h-screen flex-col bg-black";
+      : "relative flex min-h-dvh flex-col bg-black";
 
   const content = (
     <motion.div
@@ -378,17 +381,42 @@ export default function DocumentChat({
       animate={{ opacity: 1, scale: 1, y: 0 }}
       transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
     >
-      <div className="absolute right-3 top-3 z-30 flex items-center gap-2">
-        {doc?.status === "ready" && (
+      <div className="absolute right-5 top-3 z-30 flex items-center gap-2 sm:right-6">
+        <style>{`
+          @keyframes examBorderFlow {
+            0% { background-position: 0% 50%; }
+            100% { background-position: 200% 50%; }
+          }
+          .snx-exam-btn {
+            position: relative;
+            isolation: isolate;
+          }
+          .snx-exam-btn::before {
+            content: '';
+            position: absolute;
+            inset: -1.5px;
+            border-radius: 9999px;
+            padding: 1.5px;
+            background: linear-gradient(90deg, #F7374F, #FF6B1A, #F7374F, #FF6B1A, #F7374F);
+            background-size: 200% 100%;
+            -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+            -webkit-mask-composite: xor;
+            mask-composite: exclude;
+            animation: examBorderFlow 2.2s linear infinite;
+            z-index: -1;
+          }
+        `}</style>
+        {isReady && (
           <button
             type="button"
             onClick={() => setExamComposerOpen((v) => !v)}
             title="Generate an exam"
             aria-label="Generate exam"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-black/70 backdrop-blur transition-colors hover:bg-white/10"
-            style={examComposerOpen ? { color: "#F7374F", borderColor: "rgba(247,55,79,0.4)" } : { color: "rgba(255,255,255,0.7)" }}
+            className="snx-exam-btn flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-black/80 px-3.5 backdrop-blur transition-colors hover:bg-white/10"
+            style={examComposerOpen ? { color: "#F7374F" } : { color: "rgba(255,255,255,0.85)" }}
           >
-            <GraduationCap size={17} />
+            <ClipboardList size={15} />
+            <span className="text-[12.5px] font-semibold">Exam</span>
           </button>
         )}
         <button
@@ -462,11 +490,11 @@ export default function DocumentChat({
         </AnimatePresence>
       </div>
 
-      {doc?.status === "ready" && (
+      {showThread && (
         <div className="border-t border-white/10 bg-black px-4 py-3 sm:px-8">
           <div className="mx-auto max-w-[900px]">
             <AnimatePresence>
-              {examComposerOpen && (
+              {examComposerOpen && isReady && doc && (
                 <div className="mb-3">
                   <ExamComposer
                     documentTitle={doc.title}
@@ -490,9 +518,9 @@ export default function DocumentChat({
                   autoResizeTextarea();
                 }}
                 onKeyDown={handleKeyDown}
-                disabled={isStreaming}
+                disabled={isStreaming || !isReady}
                 rows={1}
-                placeholder="Message SnipixAI…"
+                placeholder={isProcessing ? "Preparing your document…" : "Message SnipixAI…"}
                 className="max-h-[200px] flex-1 resize-none bg-transparent py-1.5 text-[15px] leading-6 text-white placeholder:text-white/30 outline-none disabled:opacity-50"
               />
               {isStreaming ? (
@@ -504,6 +532,14 @@ export default function DocumentChat({
                 >
                   <Square size={13} fill="black" />
                 </button>
+              ) : isProcessing ? (
+                <div
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/10 text-white/40"
+                  aria-label="Preparing document"
+                  title="Preparing your document…"
+                >
+                  <Loader2 size={14} className="animate-spin" />
+                </div>
               ) : (
                 <button
                   type="button"

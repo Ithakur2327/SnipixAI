@@ -32,14 +32,14 @@ export default function LoginPage() {
 
   return (
     <div
-      className="min-h-screen flex items-center justify-center px-4 relative overflow-hidden"
+      className="min-h-dvh flex items-center justify-center px-4 py-10 relative overflow-hidden"
       style={{ background: "#000000" }}
     >
       <div style={{ position: "absolute", inset: 0, background: "radial-gradient(circle at top left, rgba(232,89,10,0.16), transparent 28%), radial-gradient(circle at bottom right, rgba(232,89,10,0.08), transparent 24%)" }} />
 
       <div className="w-full max-w-md relative z-10">
-        <div className="text-center mb-10">
-          <h1 className="text-4xl font-black" style={{ color: "#FFFFFF" }}>
+        <div className="text-center mb-8 sm:mb-10">
+          <h1 className="text-3xl sm:text-4xl font-black" style={{ color: "#FFFFFF" }}>
             Welcome back
           </h1>
           <p className="text-sm mt-3" style={{ color: "rgba(255,255,255,0.7)" }}>
@@ -48,7 +48,7 @@ export default function LoginPage() {
         </div>
 
         <div
-          className="rounded-[32px] p-10"
+          className="rounded-[24px] sm:rounded-[32px] p-6 sm:p-10"
           style={{ background: "rgba(11,12,20,0.90)", border: "1px solid rgba(255,255,255,0.12)", backdropFilter: "blur(24px)" }}
         >
           {error && (

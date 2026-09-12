@@ -42,9 +42,20 @@ export function AssistantBubble({ content, streaming = false }: { content: strin
       <div className="min-w-0 flex-1 text-[15px]">
         <MarkdownContent content={content} />
         {streaming && (
-          <span className="ml-0.5 inline-block h-[16px] w-[3px] translate-y-[3px] animate-pulse bg-white/80" />
+          <span
+            className="snx-cursor ml-0.5 inline-block h-[16px] w-[3px] translate-y-[3px] rounded-sm"
+            style={{ background: "linear-gradient(180deg, #FF6B1A, #F7374F)", boxShadow: "0 0 6px rgba(247,55,79,0.7)" }}
+          />
         )}
       </div>
+      <style>{`
+        @keyframes snxCursorBlink {
+          0%, 45% { opacity: 1; }
+          50%, 95% { opacity: 0.18; }
+          100% { opacity: 1; }
+        }
+        .snx-cursor { animation: snxCursorBlink 0.85s ease-in-out infinite; }
+      `}</style>
     </motion.div>
   );
 }

@@ -31,6 +31,8 @@ async def stream_completion(
         temperature=temperature,
         max_tokens=max_tokens or settings.max_output_tokens,
         stream=True,
+        reasoning_effort=settings.groq_reasoning_effort,
+        reasoning_format=settings.groq_reasoning_format,
     )
     async for chunk in stream:
         if not chunk.choices:
@@ -54,6 +56,8 @@ async def generate_completion(
         temperature=temperature,
         max_tokens=max_tokens or settings.max_output_tokens,
         stream=False,
+        reasoning_effort=settings.groq_reasoning_effort,
+        reasoning_format=settings.groq_reasoning_format,
     )
     if json_mode:
         kwargs["response_format"] = {"type": "json_object"}
@@ -66,4 +70,13 @@ async def generate_completion(
             response = await client.chat.completions.create(**kwargs)
         else:
             raise
-    return response.choices[0].message.content or ""
+    content = response.choices[0].message.content or ""
+    if not content.strip():
+        # Defensive fallback: on rare occasions a reasoning model still
+        # answers inside the reasoning trace instead of the visible
+        # content, even with reasoning_format="hidden". If that ever
+        # slips through, surface a clear error instead of silently
+        # returning an empty string that fails JSON parsing downstream
+        # with a confusing message.
+        logger.warning("[llm] Model returned empty content for a non-streaming request")
+    return content
