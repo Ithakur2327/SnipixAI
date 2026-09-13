@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 from typing import List
 
@@ -8,6 +9,12 @@ from app.core.config import get_settings
 from app.services import llm
 
 logger = logging.getLogger(__name__)
+
+# Cap on how many topics we ask the model to extract. Every exam generation
+# loops over all of them (see exam_service.generate_exam), so this also
+# bounds how many Groq requests a single exam generation can cost - useful
+# given the free tier's 1,000-requests/day ceiling, not just its TPM one.
+MAX_EXTRACTED_TOPICS = 20
 
 # How many sections we condense with the LLM at the same time. Sequential
 # condensation (one section, wait, next section...) is the main reason
@@ -33,16 +40,20 @@ def _split_into_sections(text: str, section_chars: int) -> List[str]:
 async def _condense_section(section: str, index: int, total: int, target_words: int) -> str:
     prompt = (
         f"You are condensing part {index + 1} of {total} of a longer document into a dense, "
-        f"faithful reference summary of about {target_words} words. Preserve concrete facts, "
-        "numbers, names, definitions, and conclusions. Do not add opinions or information that "
-        "is not present in the text. Write plain prose, no headers.\n\n"
+        f"faithful reference summary of about {target_words} words. Preserve every distinct "
+        "topic, concrete fact, number, name, and definition, AND the reasoning/explanation "
+        "behind each conclusion - not just the bare conclusion. A reader of only this "
+        "condensation should be able to understand *why* something is true, not just *that* "
+        "it is. Do not add opinions or information that is not present in the text, and do not "
+        "drop a topic just to shorten the text - shorten by tightening the wording instead. "
+        "Write plain prose, no headers.\n\n"
         f"Section text:\n{section}"
     )
     messages = [
         {"role": "system", "content": "You produce accurate, information-dense condensations of text for later use as reference context."},
         {"role": "user", "content": prompt},
     ]
-    result = await llm.generate_completion(messages, max_tokens=600, temperature=0.2)
+    result = await llm.generate_completion(messages, max_tokens=900, temperature=0.2)
     return result.strip()
 
 
@@ -115,3 +126,54 @@ def get_fallback_context(raw_text: str) -> str:
     head = cleaned[:half]
     tail = cleaned[-half:]
     return f"{head}\n\n[...middle of document omitted while full analysis finishes...]\n\n{tail}"
+
+
+async def extract_topics(context: str) -> List[str]:
+    """List the distinct topics/sections covered in a document, at the
+    granularity a table of contents would use.
+
+    This exists specifically because condensed context is written as plain
+    prose with no headers (see _condense_section above) - by design, so
+    condensation reads naturally - which means topics can't be pattern
+    -matched out of it the way they could from a raw document with markdown
+    headings. A dedicated extraction call works on any document regardless
+    of its original formatting, and is what lets exam generation guarantee
+    full topic coverage instead of depending on whatever the model happens
+    to include in a single freeform pass.
+    """
+    cleaned = (context or "").strip()
+    if not cleaned:
+        return []
+
+    prompt = (
+        "List every distinct topic or section covered in the document below, in the order "
+        "they appear, at the granularity a table of contents would use - not so broad that "
+        "unrelated ideas are lumped together, not so narrow that one idea is split into "
+        "several entries. Each topic should be a short, specific label (3-8 words) that "
+        "someone could be quizzed on.\n"
+        'Return only valid JSON in this shape: {"topics": ["...", "..."]}\n\n'
+        f"Document content:\n{cleaned}"
+    )
+    messages = [
+        {"role": "system", "content": "You extract structured topic lists from documents and return strict JSON only."},
+        {"role": "user", "content": prompt},
+    ]
+    try:
+        response = await llm.generate_completion(messages, max_tokens=700, temperature=0.2, json_mode=True)
+        parsed = json.loads(llm.strip_json_fence(response))
+        raw_topics = parsed.get("topics")
+        if not isinstance(raw_topics, list):
+            return []
+    except Exception as exc:
+        logger.warning("[context_builder] Topic extraction failed: %s", exc)
+        return []
+
+    topics: List[str] = []
+    seen = set()
+    for item in raw_topics:
+        label = str(item).strip().strip("-*# ")
+        key = label.lower()
+        if 2 <= len(label) <= 120 and key not in seen:
+            seen.add(key)
+            topics.append(label)
+    return topics[:MAX_EXTRACTED_TOPICS]

@@ -254,6 +254,12 @@ async def _finalize_document(object_id, doc: dict, raw_text: Optional[str], page
 
     if chunks:
         asyncio.create_task(_index_chunks_background(chunks, document_id))
+    # Deliberately delayed (see _delayed_extract_topics) rather than fired
+    # immediately - this exists to speed up a *later* action (exam
+    # generation), so it shouldn't compete with the auto-summary chat
+    # request the frontend fires the instant "ready" flips, for the same
+    # scarce per-minute Groq budget the condensation calls above just used.
+    asyncio.create_task(_delayed_extract_topics(document_id, condensed_context or raw_text))
 
 
 async def _mark_document_failed(object_id, document_id: str, exc: Exception) -> None:
@@ -268,6 +274,48 @@ async def _mark_document_failed(object_id, document_id: str, exc: Exception) -> 
                 "updatedAt": datetime.now(timezone.utc),
             }
         },
+    )
+
+
+async def _extract_topics_background(document_id: str, context: str) -> None:
+    try:
+        topics = await context_builder.extract_topics(context)
+        if topics:
+            await set_document_topics(document_id, topics)
+            logger.info("[document_service] Extracted %d topics for %s", len(topics), document_id)
+    except Exception as exc:
+        logger.error("[document_service] Background topic extraction failed for %s: %s", document_id, exc)
+
+
+# The auto-summary chat request lands within ~1s of "ready" and needs the
+# Groq token budget far more urgently than topic extraction does - a user
+# is actively staring at a loading indicator for the former, while topics
+# are only ever read later, when an exam is first requested (and even then
+# exam_service extracts + persists them on the spot if this hasn't run
+# yet). Waiting this long deliberately lets the ingestion + auto-summary
+# burst clear Groq's ~60s rolling token window first instead of racing it,
+# which is what was causing both calls to repeatedly 429 each other.
+TOPIC_EXTRACTION_DELAY_SECONDS = 45
+
+
+async def _delayed_extract_topics(document_id: str, context: str) -> None:
+    await asyncio.sleep(TOPIC_EXTRACTION_DELAY_SECONDS)
+    await _extract_topics_background(document_id, context)
+
+
+async def set_document_topics(document_id: str, topics: list[str]) -> None:
+    db = get_database()
+    await db.documents.update_one(
+        {"_id": to_object_id(document_id)},
+        {"$set": {"topics": topics, "updatedAt": datetime.now(timezone.utc)}},
+    )
+
+
+async def update_exam_history(document_id: str, exam_history: dict) -> None:
+    db = get_database()
+    await db.documents.update_one(
+        {"_id": to_object_id(document_id)},
+        {"$set": {"examHistory": exam_history, "updatedAt": datetime.now(timezone.utc)}},
     )
 
 

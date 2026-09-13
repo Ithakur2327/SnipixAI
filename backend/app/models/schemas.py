@@ -128,7 +128,13 @@ class GenerateExamRequest(BaseModel):
     examType: Literal["quiz", "subjective"]
     topic: Optional[str] = Field(default=None, max_length=200)
     useDocument: bool = True
-    numQuestions: int = Field(default=5, ge=1, le=20)
+    # 5 is only a hint used when `topic` narrows the exam to one specific
+    # topic. Whole-document exams (topic left blank, the only mode the
+    # current UI drives) ignore this and instead size themselves to fully
+    # cover every topic in the document - see exam_service.generate_exam.
+    # The upper bound here is a technical safety ceiling, not a product
+    # limit, so a single malformed request can't ask for something absurd.
+    numQuestions: int = Field(default=5, ge=1, le=200)
     difficulty: Optional[Literal["easy", "medium", "hard"]] = "medium"
 
 

@@ -1,4 +1,5 @@
 "use client";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import MarkdownContent from "./MarkdownContent";
 
@@ -52,7 +53,21 @@ export function AssistantBubble({ content, streaming = false }: { content: strin
   );
 }
 
+// Cycled while waiting for the first token - same idea as the shimmering
+// "Thinking…" label used elsewhere, swapped for a couple of phrases so it
+// doesn't feel static on documents that take a few seconds to respond.
+const THINKING_PHRASES = ["Reading the document", "Thinking", "Putting it together"];
+
 export function TypingRow() {
+  const [phraseIndex, setPhraseIndex] = useState(0);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setPhraseIndex((i) => (i + 1) % THINKING_PHRASES.length);
+    }, 1800);
+    return () => clearInterval(id);
+  }, []);
+
   return (
     <div className="flex gap-3.5">
       <div
@@ -61,15 +76,8 @@ export function TypingRow() {
       >
         <AiMark />
       </div>
-      <div className="flex items-center gap-1.5 pt-2.5">
-        {[0, 1, 2].map((i) => (
-          <motion.span
-            key={i}
-            className="h-1.5 w-1.5 rounded-full bg-white/40"
-            animate={{ opacity: [0.3, 1, 0.3], y: [0, -3, 0] }}
-            transition={{ duration: 1, repeat: Infinity, delay: i * 0.15, ease: "easeInOut" }}
-          />
-        ))}
+      <div className="flex items-center pt-2.5">
+        <span className="snx-shimmer text-[14px] font-medium">{THINKING_PHRASES[phraseIndex]}…</span>
       </div>
     </div>
   );

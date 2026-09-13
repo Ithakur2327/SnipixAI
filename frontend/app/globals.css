@@ -46,3 +46,27 @@ body {
 .snx-cursor {
   animation: snxCursorBlink 0.85s ease-in-out infinite;
 }
+
+/* Shimmering "thinking" label shown before the first token arrives (see
+   ChatBubble.tsx TypingRow) - a moving highlight band sweeps across dim
+   text, the same loading style used in Claude's own chat UI, rather than
+   the old bouncing-dots indicator. */
+@keyframes snxShimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+.snx-shimmer {
+  background-image: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.35) 0%,
+    rgba(255, 255, 255, 0.35) 40%,
+    #ffffff 50%,
+    rgba(255, 255, 255, 0.35) 60%,
+    rgba(255, 255, 255, 0.35) 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: snxShimmer 1.8s linear infinite;
+}

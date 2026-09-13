@@ -1,6 +1,8 @@
 import logging
 from typing import AsyncGenerator
 
+from groq import RateLimitError
+
 from app.core.config import get_settings
 from app.core.sse import sse_event
 from app.services import context_builder, document_service, embedder, llm, message_service, vector_store
@@ -11,7 +13,7 @@ SYSTEM_PROMPT = """You are SnipixAI, a highly capable document assistant with th
 
 Core behavior:
 - Respond in the same language, script, and tone the user writes in.
-- When asked to summarize or explain the document and no specific format is requested, produce a thorough, well-organized, comprehensive response that covers all major points of the document. Never give a short, generic, or artificially truncated answer by default.
+- When asked to summarize or explain the document and no specific format is requested, walk through every topic and section present in the document content below, in the order they appear - do not skip, merge, or compress sections just to make the answer shorter. For each point, explain the reasoning, context, or "why" behind it, not just the bare fact in isolation. Never give a short, generic, or artificially truncated answer by default.
 - Use clear structure (headings, short paragraphs, and lists) only where it genuinely helps readability. Do not force a rigid template on every answer.
 - When the user requests a specific format, length, tone, focus, or style, follow their instructions precisely instead of your default style.
 - Ground your answers in the document whenever the question relates to it, referencing specific parts naturally.
@@ -29,11 +31,34 @@ def _build_document_block(title: str, condensed_context: str, excerpts: list[dic
     return "\n\n".join(parts)
 
 
+# Keeping more history turns (settings.chat_history_turns) helps the model
+# stay coherent across a long, continuation-chained summary instead of
+# losing track of what it already covered - but a long continuation chain
+# means older turns can each be up to max_output_tokens long, and blindly
+# including all of them at full length would let a single request's input
+# alone blow past Groq's per-minute token quota with no way for a retry to
+# fix it (unlike a transient burst, a request that's structurally too big
+# just fails outright). Only the most recent turn is kept at full length -
+# it's the one continuation needs to anchor on exactly - older turns are
+# shortened to their gist.
+MAX_HISTORY_MESSAGE_CHARS = 1200
+KEEP_FULL_LAST_TURNS = 2
+
+
+def _truncate_history_text(text: str) -> str:
+    if len(text) <= MAX_HISTORY_MESSAGE_CHARS:
+        return text
+    return text[:MAX_HISTORY_MESSAGE_CHARS].rstrip() + "\n[...older content shortened for context...]"
+
+
 def _history_to_llm_messages(history: list[dict]) -> list[dict]:
     formatted = []
-    for msg in history:
+    total = len(history)
+    for idx, msg in enumerate(history):
+        keep_full = idx >= total - KEEP_FULL_LAST_TURNS
         if msg["type"] == "text" and msg.get("content"):
-            formatted.append({"role": msg["role"], "content": msg["content"]})
+            content = msg["content"] if keep_full else _truncate_history_text(msg["content"])
+            formatted.append({"role": msg["role"], "content": content})
         elif msg["type"] == "exam" and msg.get("exam"):
             topic = msg["exam"].get("topic", "the document")
             exam_type = msg["exam"].get("examType", "quiz")
@@ -63,10 +88,29 @@ async def stream_chat_response(
     if not continuation:
         await message_service.insert_message(document_id, user_id, "user", "text", content=user_message)
     else:
+        # Anchor on the literal tail of what was already written instead of
+        # a generic "continue where you left off" instruction. The prior
+        # partial response is already the last turn in `history` below, but
+        # calling out its exact ending text explicitly - and telling the
+        # model whether it needs to finish a sentence/word mid-way rather
+        # than start a fresh one - is what actually makes the seam
+        # invisible instead of leaving a repeated phrase or a restarted
+        # paragraph at the join.
+        last_assistant_text = ""
+        for msg in reversed(history):
+            if msg["role"] == "assistant" and msg["type"] == "text" and msg.get("content"):
+                last_assistant_text = msg["content"]
+                break
+        tail = last_assistant_text[-400:]
         user_message = (
-            "Continue the previous assistant response from exactly where it stopped. "
-            "Do not repeat any text already written, do not add an introduction, and "
-            "finish covering the remaining parts of the document."
+            "Your previous response was cut off before it was finished. Here is the exact "
+            f"tail end of what you already wrote, verbatim:\n\n\"...{tail}\"\n\n"
+            "Continue writing starting immediately after that exact text. If it stops "
+            "mid-sentence or mid-word, finish that same sentence/word first - do not start a "
+            "new sentence. Do not repeat any text already written above, do not add a "
+            "transition phrase like 'continuing from before', a new heading, or a fresh "
+            "introduction. Keep going until every remaining topic and section is fully "
+            "covered."
         )
 
     try:
@@ -103,6 +147,14 @@ async def stream_chat_response(
         logger.error("[chat_service] streaming failed: %s", exc)
         if accumulated.strip():
             yield sse_event("error", {"message": "The response was interrupted, but here is what was generated."})
+        elif isinstance(exc, RateLimitError):
+            # llm.stream_completion already retries transient 429s a couple
+            # of times with Groq's own suggested backoff; if it still
+            # couldn't get through, demand is genuinely high right now.
+            yield sse_event(
+                "error",
+                {"message": "The AI is getting a lot of requests right now. Please wait a few seconds and try again."},
+            )
         else:
             yield sse_event("error", {"message": "The AI is temporarily unavailable. Please try again."})
     finally:
