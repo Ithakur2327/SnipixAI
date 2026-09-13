@@ -34,3 +34,15 @@ body {
     font-size: 16px !important;
   }
 }
+
+/* Distinct streaming-text cursor used in the document chat (see
+   ChatBubble.tsx AssistantBubble) - a sharp blink rather than a generic
+   fade, in the app's own accent colors instead of plain white. */
+@keyframes snxCursorBlink {
+  0%, 45% { opacity: 1; }
+  50%, 95% { opacity: 0.18; }
+  100% { opacity: 1; }
+}
+.snx-cursor {
+  animation: snxCursorBlink 0.85s ease-in-out infinite;
+}

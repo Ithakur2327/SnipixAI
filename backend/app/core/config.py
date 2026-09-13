@@ -20,7 +20,16 @@ class Settings(BaseSettings):
     cloudinary_api_secret: str = os.getenv("CLOUDINARY_API_SECRET", "")
 
     groq_api_key: str = os.getenv("GROQ_API_KEY", "")
-    groq_model: str = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
+    # openai/gpt-oss-20b runs at roughly 2x the raw token throughput of
+    # gpt-oss-120b on Groq (~1,000 tok/s vs ~500 tok/s) with the same
+    # 131,072 token context window and the same reasoning controls below,
+    # while still being Groq's currently "recommended" production model -
+    # this is the single biggest lever available for cutting chat/exam
+    # response time. It's a smaller model, so very occasionally it may be
+    # slightly less nuanced on complex synthesis than the 120b version;
+    # switch GROQ_MODEL back to "openai/gpt-oss-120b" if that trade-off
+    # ever matters more than speed for your use case.
+    groq_model: str = os.getenv("GROQ_MODEL", "openai/gpt-oss-20b")
     # openai/gpt-oss-120b is a reasoning model that, by default, spends a
     # chunk of every request "thinking" before it writes the visible
     # answer (default reasoning_effort is "medium" on Groq). That thinking
@@ -50,7 +59,7 @@ class Settings(BaseSettings):
     condensed_section_char_size: int = int(os.getenv("CONDENSED_SECTION_CHAR_SIZE", "12000"))
     condensed_section_target_words: int = int(os.getenv("CONDENSED_SECTION_TARGET_WORDS", "350"))
     chat_history_turns: int = int(os.getenv("CHAT_HISTORY_TURNS", "8"))
-    max_output_tokens: int = int(os.getenv("MAX_OUTPUT_TOKENS", "3072"))
+    max_output_tokens: int = int(os.getenv("MAX_OUTPUT_TOKENS", "6144"))
     exam_max_output_tokens: int = int(os.getenv("EXAM_MAX_OUTPUT_TOKENS", "4096"))
 
     free_plan_document_limit: int = int(os.getenv("FREE_PLAN_DOCUMENT_LIMIT", "20"))

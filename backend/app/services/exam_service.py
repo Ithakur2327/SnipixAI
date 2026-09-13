@@ -1,210 +1,126 @@
-import asyncio
+import json
 import logging
-import re
-from io import BytesIO
-from typing import Optional, Tuple
+import uuid
 
-import requests
+from app.core.exceptions import BadRequestError
+from app.services import document_service, llm, message_service
 
 logger = logging.getLogger(__name__)
 
 
-def extract_text(
-    source_type: str,
-    source_url: Optional[str] = None,
-    raw_text: Optional[str] = None,
-) -> Tuple[str, Optional[int]]:
+def _document_context(document: dict, use_document: bool) -> str:
+    if not use_document:
+        return ""
+    return (document.get("condensedContext") or document.get("rawText") or "").strip()
+
+
+def _strip_json_fence(content: str) -> str:
+    cleaned = content.strip()
+    if cleaned.startswith("```"):
+        lines = cleaned.splitlines()
+        if lines and lines[0].startswith("```"):
+            lines = lines[1:]
+        if lines and lines[-1].strip() == "```":
+            lines.pop()
+        cleaned = "\n".join(lines).strip()
+    return cleaned
+
+
+async def generate_exam(
+    user_id: str,
+    document_id: str,
+    exam_type: str,
+    topic: str | None,
+    use_document: bool,
+    num_questions: int,
+    difficulty: str,
+) -> dict:
+    document = await document_service.get_document(user_id, document_id)
+    if document.get("status") != "ready":
+        raise BadRequestError("This document is still being processed.")
+
+    selected_topic = (topic or "the document").strip()
+    context = _document_context(document, use_document)
+    if use_document and not context:
+        raise BadRequestError("No readable document content is available for this exam.")
+
+    if exam_type == "quiz":
+        question_shape = "Each question must have exactly four options, a zero-based correctIndex, and a short explanation."
+    else:
+        question_shape = "Each question must have an answer with key points. Set options, correctIndex, and explanation to null."
+
+    prompt = f'''Create a {difficulty} {exam_type} exam with exactly {num_questions} questions about {selected_topic}.
+Return only valid JSON with this shape:
+{{"questions":[{{"question":"...","options":[],"correctIndex":0,"explanation":"...","answer":"..."}}]}}
+Use a unique short question id for every question. {question_shape}
+Use the document content as the source of truth and cover different sections when possible.
+
+Document content:
+{context}
+'''
+    response = await llm.generate_completion(
+        [
+            {"role": "system", "content": "You generate accurate exams and return strict JSON only."},
+            {"role": "user", "content": prompt},
+        ],
+        max_tokens=max(2048, num_questions * 500),
+        temperature=0.25,
+        json_mode=True,
+    )
     try:
-        if source_type == "raw_text":
-            return (raw_text or ""), None
+        parsed = json.loads(_strip_json_fence(response))
+        questions = parsed.get("questions")
+        if not isinstance(questions, list) or len(questions) != num_questions:
+            raise ValueError("The model returned an invalid question count.")
+    except (json.JSONDecodeError, TypeError, ValueError) as exc:
+        logger.error("[exam_service] Invalid exam response: %s", exc)
+        raise BadRequestError("The exam could not be generated. Please try again.") from exc
 
-        if source_type == "url":
-            return _extract_url(source_url), None
-
-        if source_type == "image":
-            return _extract_image(source_url), None
-
-        if not source_url:
-            raise ValueError("source_url required for file types")
-
-        response = requests.get(source_url, timeout=30)
-
-        if response.status_code == 401:
-            raise ValueError(
-                "File could not be accessed (401 Unauthorized). "
-                "In Cloudinary Dashboard -> Settings -> Security, ensure "
-                "'Strict delivery mode' is disabled, or make the file publicly accessible. "
-                f"URL attempted: {source_url}"
-            )
-        elif response.status_code == 403:
-            raise ValueError(
-                "File access forbidden (403). The Cloudinary file may have restricted "
-                "delivery settings. Check your Cloudinary account's access control settings."
-            )
-        elif response.status_code == 404:
-            raise ValueError(
-                f"File not found (404). The file may have been deleted from Cloudinary. "
-                f"URL: {source_url}"
-            )
-        elif response.status_code == 500:
-            raise ValueError(
-                "Cloudinary server error (500). This may indicate account restrictions "
-                f"or misconfiguration. URL: {source_url}"
-            )
-
-        response.raise_for_status()
-        buffer = BytesIO(response.content)
-
-        if source_type == "pdf":
-            return _extract_pdf(buffer)
-        elif source_type == "docx":
-            return _extract_docx(buffer), None
-        elif source_type == "ppt":
-            return _extract_pptx(buffer), None
-        elif source_type == "txt":
-            return buffer.read().decode("utf-8", errors="ignore").strip(), None
+    normalized = []
+    for question in questions:
+        if not isinstance(question, dict) or not str(question.get("question", "")).strip():
+            raise BadRequestError("The exam response contained an invalid question.")
+        question["id"] = str(question.get("id") or uuid.uuid4().hex[:10])
+        if exam_type == "quiz":
+            if not isinstance(question.get("options"), list) or len(question["options"]) < 2 or not isinstance(question.get("correctIndex"), int):
+                raise BadRequestError("The exam response contained an invalid quiz question.")
         else:
-            raise ValueError(f"Unsupported source type: {source_type}")
+            question["options"] = None
+            question["correctIndex"] = None
+        normalized.append(question)
 
-    except Exception as exc:
-        logger.error("[extractor] Error extracting %s: %s", source_type, exc)
-        raise
-
-
-# --- Async wrapper ----------------------------------------------------
-# Extraction does blocking network I/O (requests.get) and, for PDFs/OCR,
-# real CPU work - all of which would otherwise stall the event loop for
-# every other user while one document (especially a large 50MB one) is
-# being processed.
-
-
-async def extract_text_async(
-    source_type: str,
-    source_url: Optional[str] = None,
-    raw_text: Optional[str] = None,
-) -> Tuple[str, Optional[int]]:
-    return await asyncio.to_thread(extract_text, source_type, source_url, raw_text)
-
-
-def _extract_pdf(buffer: BytesIO) -> Tuple[str, int]:
-    from pypdf import PdfReader
-
-    reader = PdfReader(buffer)
-    pages = []
-    for page in reader.pages:
-        text = page.extract_text() or ""
-        pages.append(text)
-    return "\n\n".join(pages), len(reader.pages)
-
-
-def _extract_docx(buffer: BytesIO) -> str:
-    from docx import Document
-
-    doc = Document(buffer)
-    paragraphs = [p.text for p in doc.paragraphs if p.text.strip()]
-    return "\n\n".join(paragraphs)
-
-
-def _extract_pptx(buffer: BytesIO) -> str:
-    from pptx import Presentation
-
-    prs = Presentation(buffer)
-    slides_text = []
-    for i, slide in enumerate(prs.slides):
-        texts = []
-        for shape in slide.shapes:
-            if hasattr(shape, "text") and shape.text.strip():
-                texts.append(shape.text.strip())
-        if texts:
-            slides_text.append(f"[Slide {i + 1}]\n" + "\n".join(texts))
-    return "\n\n".join(slides_text)
-
-
-def _extract_url(url: str) -> str:
-    from bs4 import BeautifulSoup
-
-    is_reddit = "reddit.com" in url
-    if is_reddit:
-        fetch_url = re.sub(r"(https?://)(?:www\.)?reddit\.com", r"\1old.reddit.com", url)
-    else:
-        fetch_url = url
-
-    headers = {
-        "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/120.0.0.0 Safari/537.36"
-        ),
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.5",
+    exam = {
+        "examType": exam_type,
+        "topic": selected_topic,
+        "questions": normalized,
+        "userAnswers": {},
+        "submitted": False,
+        "revealed": {},
+        "score": None,
     }
-
-    response = requests.get(fetch_url, headers=headers, timeout=30)
-    response.raise_for_status()
-
-    soup = BeautifulSoup(response.text, "html.parser")
-
-    for tag in soup(["script", "style", "nav", "footer", "header", "aside", "form", "noscript", "iframe"]):
-        tag.decompose()
-
-    if is_reddit:
-        content_el = (
-            soup.find("div", class_="thing")
-            or soup.find("div", class_="entry")
-            or soup.find("div", id="siteTable")
-            or soup.find("div", class_="commentarea")
-        )
-    else:
-        content_el = (
-            soup.find("article")
-            or soup.find("main")
-            or soup.find(id="content")
-            or soup.find(class_=lambda c: c and any(x in c for x in ["content", "article", "post", "entry"]))
-            or soup.find("body")
-        )
-
-    text = content_el.get_text(separator="\n") if content_el else soup.get_text(separator="\n")
-
-    lines = [line.strip() for line in text.splitlines()]
-    lines = [line for line in lines if len(line) > 20]
-    result = "\n\n".join(lines[:500])
-
-    if not result.strip():
-        body = soup.find("body")
-        if body:
-            all_lines = [line.strip() for line in body.get_text(separator="\n").splitlines()]
-            all_lines = [line for line in all_lines if len(line) > 15]
-            result = "\n\n".join(all_lines[:500])
-
-    if not result.strip():
-        raise ValueError(
-            f"No readable text could be extracted from URL: {url}. "
-            "The page may be JavaScript-rendered, paywalled, or require login. "
-            "Try copying the text manually and using the 'Text' input instead."
-        )
-
-    return result
+    message = await message_service.insert_message(document_id, user_id, "assistant", "exam", exam=exam)
+    await document_service.increment_message_count(document_id)
+    return message
 
 
-def _extract_image(url: str) -> str:
-    try:
-        import pytesseract
-        from PIL import Image
-    except ImportError:
-        raise ValueError(
-            "Image text extraction requires pytesseract and Pillow. "
-            "Install with: pip install pytesseract pillow\n"
-            "Also install Tesseract OCR: https://github.com/tesseract-ocr/tesseract"
-        )
+async def submit_quiz_answers(user_id: str, message_id: str, answers: dict[str, int]) -> dict:
+    message = await message_service.get_message(message_id, user_id)
+    exam = message.get("exam") or {}
+    if exam.get("examType") != "quiz":
+        raise BadRequestError("Only quiz exams can be submitted.")
+    questions = exam.get("questions") or []
+    correct = sum(1 for question in questions if answers.get(question.get("id")) == question.get("correctIndex"))
+    return await message_service.update_exam_state(
+        message_id,
+        user_id,
+        {"userAnswers": answers, "submitted": True, "score": {"correct": correct, "total": len(questions)}},
+    )
 
-    response = requests.get(url, timeout=30)
-    response.raise_for_status()
-    img = Image.open(BytesIO(response.content))
-    text = pytesseract.image_to_string(img).strip()
 
-    if not text:
-        raise ValueError(
-            "No text could be extracted from the image. "
-            "The image may not contain readable text, or the text may be too small/blurry."
-        )
-    return text
+async def reveal_subjective_answer(user_id: str, message_id: str, question_id: str, revealed: bool) -> dict:
+    message = await message_service.get_message(message_id, user_id)
+    exam = message.get("exam") or {}
+    if exam.get("examType") != "subjective":
+        raise BadRequestError("Only subjective exams have revealable answers.")
+    reveal_state = {**(exam.get("revealed") or {}), question_id: revealed}
+    return await message_service.update_exam_state(message_id, user_id, {"revealed": reveal_state})

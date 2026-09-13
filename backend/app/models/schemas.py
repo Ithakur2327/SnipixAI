@@ -74,6 +74,7 @@ class DocumentListData(BaseModel):
 
 class SendMessageRequest(BaseModel):
     message: str = Field(min_length=1, max_length=8000)
+    continuation: bool = False
 
 
 class MessageSource(BaseModel):

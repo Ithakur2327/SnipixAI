@@ -111,6 +111,7 @@ export default function DocumentChat({
   const [isGeneratingExam, setIsGeneratingExam] = useState(false);
   const [examError, setExamError] = useState<string | null>(null);
   const [showScrollButton, setShowScrollButton] = useState(false);
+  const [continuationRequested, setContinuationRequested] = useState(false);
 
   const abortRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -120,6 +121,7 @@ export default function DocumentChat({
   const autoSummaryTriggeredRef = useRef(false);
   const pollAttemptsRef = useRef(0);
   const fullTextRef = useRef("");
+  const continuationBaseRef = useRef("");
   const revealFrameRef = useRef<number | null>(null);
 
   const isMounted = useHasMounted();
@@ -207,8 +209,12 @@ export default function DocumentChat({
         const step =
           backlog > CATCHUP_BACKLOG_THRESHOLD
             ? Math.ceil(backlog / REVEAL_CATCHUP_DIVISOR)
-            : MIN_REVEAL_CHARS_PER_FRAME;
-        return full.slice(0, prev.length + step);
+            : // Small random jitter (2-4 chars/frame, same ~3 char average as
+              // before) instead of a perfectly constant tick - reads as a
+              // person typing rather than a metronome, without changing the
+              // overall speed.
+              MIN_REVEAL_CHARS_PER_FRAME + (Math.floor(Math.random() * 3) - 1);
+        return full.slice(0, prev.length + Math.max(1, step));
       });
       revealFrameRef.current = requestAnimationFrame(tick);
     };
@@ -225,13 +231,23 @@ export default function DocumentChat({
   }, []);
 
   const handleSend = useCallback(
-    async (text: string) => {
+    async (text: string, continuation = false) => {
       const trimmed = text.trim();
-      if (!trimmed || isStreaming || doc?.status !== "ready") return;
+      if ((!trimmed && !continuation) || isStreaming || doc?.status !== "ready") return;
 
       setChatError(null);
-      setInput("");
-      requestAnimationFrame(autoResizeTextarea);
+      if (!continuation) {
+        setInput("");
+        requestAnimationFrame(autoResizeTextarea);
+        continuationBaseRef.current = "";
+      } else {
+        const lastAssistant = [...messages].reverse().find((message) => message.role === "assistant" && message.type === "text");
+        continuationBaseRef.current = lastAssistant?.content ?? "";
+        setMessages((prev) => {
+          const lastIndex = [...prev].map((message) => message.role === "assistant" && message.type === "text").lastIndexOf(true);
+          return lastIndex >= 0 ? prev.filter((_, index) => index !== lastIndex) : prev;
+        });
+      }
 
       const userMessage: ChatMessage = {
         id: `local-${Date.now()}`,
@@ -243,7 +259,7 @@ export default function DocumentChat({
         exam: null,
         createdAt: new Date().toISOString(),
       };
-      setMessages((prev) => [...prev, userMessage]);
+      if (!continuation) setMessages((prev) => [...prev, userMessage]);
       setIsStreaming(true);
       fullTextRef.current = "";
       setStreamingContent("");
@@ -256,6 +272,7 @@ export default function DocumentChat({
       try {
         await streamChatMessage(documentId, trimmed, {
           signal: controller.signal,
+          continuation,
           onEvent: (event) => {
             if (event.type === "token") {
               fullTextRef.current += event.content;
@@ -271,13 +288,14 @@ export default function DocumentChat({
                   documentId,
                   role: "assistant",
                   type: "text",
-                  content: fullTextRef.current,
+                  content: continuationBaseRef.current + fullTextRef.current,
                   sources: event.sources,
                   exam: null,
                   createdAt: event.createdAt,
                 },
               ]);
               setStreamingContent("");
+              if (!event.complete) setContinuationRequested(true);
             }
           },
         });
@@ -295,7 +313,7 @@ export default function DocumentChat({
               documentId,
               role: "assistant",
               type: "text",
-              content: fullTextRef.current,
+              content: continuationBaseRef.current + fullTextRef.current,
               sources: [],
               exam: null,
               createdAt: new Date().toISOString(),
@@ -307,8 +325,14 @@ export default function DocumentChat({
         abortRef.current = null;
       }
     },
-    [documentId, isStreaming, doc?.status, autoResizeTextarea, startRevealLoop, stopRevealLoop]
+    [documentId, isStreaming, doc?.status, autoResizeTextarea, startRevealLoop, stopRevealLoop, messages]
   );
+
+  useEffect(() => {
+    if (!continuationRequested || isStreaming) return;
+    setContinuationRequested(false);
+    void handleSend("", true);
+  }, [continuationRequested, isStreaming, handleSend]);
 
   useEffect(() => {
     if (doc?.status === "ready" && historyLoaded && messages.length === 0 && !autoSummaryTriggeredRef.current) {
@@ -466,7 +490,7 @@ export default function DocumentChat({
               )
             )}
 
-          {isStreaming && (streamingContent ? <AssistantBubble content={streamingContent} streaming /> : <TypingRow />)}
+          {isStreaming && (streamingContent ? <AssistantBubble content={continuationBaseRef.current + streamingContent} streaming /> : <TypingRow />)}
 
           <div ref={bottomRef} />
         </div>

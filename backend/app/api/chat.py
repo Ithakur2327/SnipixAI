@@ -15,7 +15,9 @@ async def send_message(
     payload: SendMessageRequest,
     current_user: dict = Depends(get_current_user),
 ) -> StreamingResponse:
-    generator = chat_service.stream_chat_response(str(current_user["_id"]), document_id, payload.message)
+    generator = chat_service.stream_chat_response(
+        str(current_user["_id"]), document_id, payload.message, continuation=payload.continuation
+    )
     return StreamingResponse(
         generator,
         media_type="text/event-stream",

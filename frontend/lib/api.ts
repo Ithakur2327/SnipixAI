@@ -132,13 +132,13 @@ export const examAPI = {
 
 export type StreamEvent =
   | { type: "token"; content: string }
-  | { type: "done"; messageId: string; sources: ChatMessage["sources"]; createdAt: string }
+  | { type: "done"; messageId: string; sources: ChatMessage["sources"]; createdAt: string; complete: boolean }
   | { type: "error"; message: string };
 
 export async function streamChatMessage(
   documentId: string,
   message: string,
-  handlers: { onEvent: (event: StreamEvent) => void; signal?: AbortSignal }
+  handlers: { onEvent: (event: StreamEvent) => void; signal?: AbortSignal; continuation?: boolean }
 ): Promise<void> {
   const token = readToken();
   const response = await fetch(`${API_BASE_URL}/chat/${documentId}`, {
@@ -147,7 +147,7 @@ export async function streamChatMessage(
       "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
-    body: JSON.stringify({ message }),
+    body: JSON.stringify({ message, continuation: handlers.continuation ?? false }),
     signal: handlers.signal,
   });
 
@@ -190,6 +190,7 @@ export async function streamChatMessage(
             messageId: parsed.messageId,
             sources: parsed.sources ?? [],
             createdAt: parsed.createdAt,
+            complete: parsed.complete ?? true,
           });
         } else if (eventType === "error") {
           handlers.onEvent({ type: "error", message: parsed.message });

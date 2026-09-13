@@ -41,7 +41,12 @@ def _history_to_llm_messages(history: list[dict]) -> list[dict]:
     return formatted
 
 
-async def stream_chat_response(user_id: str, document_id: str, user_message: str) -> AsyncGenerator[str, None]:
+async def stream_chat_response(
+    user_id: str,
+    document_id: str,
+    user_message: str,
+    continuation: bool = False,
+) -> AsyncGenerator[str, None]:
     settings = get_settings()
 
     try:
@@ -55,7 +60,14 @@ async def stream_chat_response(user_id: str, document_id: str, user_message: str
         return
 
     history = await message_service.get_history(document_id, user_id, limit=settings.chat_history_turns)
-    await message_service.insert_message(document_id, user_id, "user", "text", content=user_message)
+    if not continuation:
+        await message_service.insert_message(document_id, user_id, "user", "text", content=user_message)
+    else:
+        user_message = (
+            "Continue the previous assistant response from exactly where it stopped. "
+            "Do not repeat any text already written, do not add an introduction, and "
+            "finish covering the remaining parts of the document."
+        )
 
     try:
         query_vector = await embedder.embed_query_async(user_message)
@@ -78,11 +90,13 @@ async def stream_chat_response(user_id: str, document_id: str, user_message: str
     messages.append({"role": "user", "content": user_message})
 
     accumulated = ""
+    interrupted = False
     try:
         async for delta in llm.stream_completion(messages, max_tokens=settings.max_output_tokens):
             accumulated += delta
             yield sse_event("token", {"content": delta})
     except Exception as exc:
+        interrupted = True
         logger.error("[chat_service] streaming failed: %s", exc)
         if accumulated.strip():
             yield sse_event("error", {"message": "The response was interrupted, but here is what was generated."})
@@ -100,6 +114,7 @@ async def stream_chat_response(user_id: str, document_id: str, user_message: str
                     "messageId": str(saved["_id"]),
                     "sources": sources,
                     "createdAt": saved["createdAt"],
+                    "complete": not interrupted,
                 },
             )
 

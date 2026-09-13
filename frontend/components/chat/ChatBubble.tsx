@@ -48,14 +48,6 @@ export function AssistantBubble({ content, streaming = false }: { content: strin
           />
         )}
       </div>
-      <style>{`
-        @keyframes snxCursorBlink {
-          0%, 45% { opacity: 1; }
-          50%, 95% { opacity: 0.18; }
-          100% { opacity: 1; }
-        }
-        .snx-cursor { animation: snxCursorBlink 0.85s ease-in-out infinite; }
-      `}</style>
     </motion.div>
   );
 }
