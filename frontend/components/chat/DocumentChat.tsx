@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronDown, ClipboardList, FileText, Home, Loader2, Send, Square } from "lucide-react";
+import { ChevronDown, ClipboardList, FileText, Home, Loader2, PenLine, Send, Square } from "lucide-react";
 import { chatAPI, documentAPI, examAPI, getApiErrorMessage, streamChatMessage } from "@/lib/api";
 import { DOCUMENT_TYPE_META, formatWords } from "@/lib/utils";
 import type { ChatMessage, Document } from "@/types";
@@ -85,6 +85,30 @@ function DocErrorState({ message, onClose }: { message: string; onClose: () => v
   );
 }
 
+function ExamGeneratingState({ examType }: { examType: ExamFormValues["examType"] }) {
+  const isQuiz = examType === "quiz";
+  return (
+    <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="flex items-center gap-3 px-1 py-2">
+      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/15 text-white">
+        {isQuiz ? <ClipboardList size={12} /> : <PenLine size={12} />}
+      </div>
+      <div className="flex items-center gap-1.5">
+        <span className="snx-shimmer text-[14px] font-medium">{isQuiz ? "Creating quiz" : "Creating test"}</span>
+        <span className="flex gap-1" aria-hidden="true">
+          {[0, 1, 2].map((dot) => (
+            <motion.span
+              key={dot}
+              className="h-1.5 w-1.5 rounded-full bg-white/60"
+              animate={{ opacity: [0.25, 1, 0.25], y: [0, -2, 0] }}
+              transition={{ duration: 0.9, repeat: Infinity, delay: dot * 0.15 }}
+            />
+          ))}
+        </span>
+      </div>
+    </motion.div>
+  );
+}
+
 export default function DocumentChat({
   documentId,
   onClose,
@@ -109,6 +133,7 @@ export default function DocumentChat({
   const [chatError, setChatError] = useState<string | null>(null);
   const [examComposerOpen, setExamComposerOpen] = useState(false);
   const [isGeneratingExam, setIsGeneratingExam] = useState(false);
+  const [generatingExamType, setGeneratingExamType] = useState<ExamFormValues["examType"]>("quiz");
   const [examError, setExamError] = useState<string | null>(null);
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [continuationRequested, setContinuationRequested] = useState(false);
@@ -367,6 +392,7 @@ export default function DocumentChat({
   }
 
   async function handleGenerateExam(values: ExamFormValues) {
+    setGeneratingExamType(values.examType);
     setIsGeneratingExam(true);
     setExamError(null);
     setExamComposerOpen(false);
@@ -419,7 +445,7 @@ export default function DocumentChat({
             content: '';
             position: absolute;
             inset: -1.5px;
-            border-radius: 9999px;
+            border-radius: 0.5rem;
             padding: 1.5px;
             background: linear-gradient(90deg, #F7374F, #FF6B1A, #F7374F, #FF6B1A, #F7374F);
             background-size: 200% 100%;
@@ -436,11 +462,11 @@ export default function DocumentChat({
             onClick={() => setExamComposerOpen((v) => !v)}
             title="Generate an exam"
             aria-label="Generate exam"
-            className="snx-exam-btn flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-black/80 px-3.5 backdrop-blur transition-colors hover:bg-white/10"
+            className="snx-exam-btn flex h-9 w-14 shrink-0 items-center justify-center gap-1.5 rounded-lg bg-black/80 px-2 backdrop-blur transition-colors hover:bg-white/10"
             style={examComposerOpen ? { color: "#F7374F" } : { color: "rgba(255,255,255,0.85)" }}
           >
-            <ClipboardList size={15} />
-            <span className="text-[12.5px] font-semibold">Exam</span>
+            <ClipboardList size={12} />
+            <span className="text-[10px] font-semibold">Exam</span>
           </button>
         )}
         <button
@@ -448,7 +474,7 @@ export default function DocumentChat({
             onClose();
             window.location.assign("/");
           }}
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-black/70 text-white/70 backdrop-blur transition-colors hover:bg-white/10 hover:text-white"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-black/70 text-white/70 backdrop-blur transition-colors hover:bg-white/10 hover:text-white"
           aria-label="Home"
           title="Home"
         >
@@ -531,6 +557,10 @@ export default function DocumentChat({
                   />
                 </div>
               )}
+            </AnimatePresence>
+
+            <AnimatePresence>
+              {isGeneratingExam && <ExamGeneratingState examType={generatingExamType} />}
             </AnimatePresence>
 
             {examError && <p className="mb-2 text-[12px] text-white/50">{examError}</p>}
