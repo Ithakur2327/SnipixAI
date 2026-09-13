@@ -14,7 +14,7 @@ def get_client() -> AsyncGroq:
     global _client
     if _client is None:
         settings = get_settings()
-        _client = AsyncGroq(api_key=settings.groq_api_key)
+        _client = AsyncGroq(api_key=settings.groq_api_key, max_retries=0)
     return _client
 
 
@@ -22,6 +22,7 @@ async def stream_completion(
     messages: List[dict],
     max_tokens: int | None = None,
     temperature: float = 0.6,
+    stream_status: dict | None = None,
 ) -> AsyncGenerator[str, None]:
     settings = get_settings()
     client = get_client()
@@ -34,12 +35,18 @@ async def stream_completion(
         reasoning_effort=settings.groq_reasoning_effort,
         reasoning_format=settings.groq_reasoning_format,
     )
+    completed = False
     async for chunk in stream:
         if not chunk.choices:
             continue
+        finish_reason = chunk.choices[0].finish_reason
+        if finish_reason:
+            completed = finish_reason == "stop"
         delta = chunk.choices[0].delta
         if delta and delta.content:
             yield delta.content
+    if stream_status is not None:
+        stream_status["complete"] = completed
 
 
 async def generate_completion(

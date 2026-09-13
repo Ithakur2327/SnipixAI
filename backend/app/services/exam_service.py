@@ -8,6 +8,16 @@ from app.services import document_service, llm, message_service
 logger = logging.getLogger(__name__)
 
 
+def _topic_candidates(context: str) -> list[str]:
+    topics = []
+    for line in context.splitlines():
+        cleaned = line.strip().lstrip("#-*0123456789. ").strip()
+        if 3 <= len(cleaned) <= 100 and (line.strip().startswith("#") or line.strip().endswith(":") or line.strip().isupper()):
+            if cleaned.lower() not in {topic.lower() for topic in topics}:
+                topics.append(cleaned)
+    return topics[:10]
+
+
 def _document_context(document: dict, use_document: bool) -> str:
     if not use_document:
         return ""
@@ -44,16 +54,25 @@ async def generate_exam(
     if use_document and not context:
         raise BadRequestError("No readable document content is available for this exam.")
 
+    topics = _topic_candidates(context)
+    required_question_count = min(max(num_questions, len(topics) * 2), 20)
+    topic_instruction = (
+        "Allocate at least two questions to each of these topics: " + ", ".join(topics)
+        if topics
+        else "Cover every major topic and section in the document; include at least two questions per identifiable topic when possible."
+    )
+
     if exam_type == "quiz":
         question_shape = "Each question must have exactly four options, a zero-based correctIndex, and a short explanation."
     else:
         question_shape = "Each question must have an answer with key points. Set options, correctIndex, and explanation to null."
 
-    prompt = f'''Create a {difficulty} {exam_type} exam with exactly {num_questions} questions about {selected_topic}.
+    prompt = f'''Create a {difficulty} {exam_type} exam with exactly {required_question_count} questions about {selected_topic}.
 Return only valid JSON with this shape:
 {{"questions":[{{"question":"...","options":[],"correctIndex":0,"explanation":"...","answer":"..."}}]}}
 Use a unique short question id for every question. {question_shape}
-Use the document content as the source of truth and cover different sections when possible.
+Use the document content as the source of truth. {topic_instruction}
+The questions array must contain exactly {required_question_count} items; do not return fewer.
 
 Document content:
 {context}
@@ -70,7 +89,7 @@ Document content:
     try:
         parsed = json.loads(_strip_json_fence(response))
         questions = parsed.get("questions")
-        if not isinstance(questions, list) or len(questions) != num_questions:
+        if not isinstance(questions, list) or len(questions) != required_question_count:
             raise ValueError("The model returned an invalid question count.")
     except (json.JSONDecodeError, TypeError, ValueError) as exc:
         logger.error("[exam_service] Invalid exam response: %s", exc)

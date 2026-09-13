@@ -405,7 +405,7 @@ export default function DocumentChat({
       animate={{ opacity: 1, scale: 1, y: 0 }}
       transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
     >
-      <div className="absolute right-5 top-3 z-30 flex items-center gap-2 sm:right-6">
+      <div className="absolute right-3 top-[max(0.75rem,env(safe-area-inset-top))] z-30 flex items-center gap-1.5 sm:right-6 sm:gap-2">
         <style>{`
           @keyframes examBorderFlow {
             0% { background-position: 0% 50%; }
@@ -444,7 +444,10 @@ export default function DocumentChat({
           </button>
         )}
         <button
-          onClick={() => router.push("/")}
+          onClick={() => {
+            onClose();
+            window.location.assign("/");
+          }}
           className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-black/70 text-white/70 backdrop-blur transition-colors hover:bg-white/10 hover:text-white"
           aria-label="Home"
           title="Home"
@@ -454,7 +457,7 @@ export default function DocumentChat({
       </div>
 
       <div ref={scrollRef} onScroll={handleScroll} className="relative flex-1 overflow-y-auto">
-        <div className="mx-auto flex max-w-[900px] flex-col gap-6 px-4 pb-6 pt-14 sm:px-8">
+        <div className="mx-auto flex w-full max-w-[900px] flex-col gap-5 px-3 pb-[calc(1.5rem+env(safe-area-inset-bottom))] pt-14 sm:gap-6 sm:px-8">
           {docLoadError && <DocErrorState message={docLoadError} onClose={onClose} />}
           {!docLoadError && doc?.status === "error" && (
             <DocErrorState message={doc.errorMessage || "Something went wrong while processing this document."} onClose={onClose} />
@@ -515,7 +518,7 @@ export default function DocumentChat({
       </div>
 
       {showThread && (
-        <div className="border-t border-white/10 bg-black px-4 py-3 sm:px-8">
+        <div className="border-t border-white/10 bg-black px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 sm:px-8">
           <div className="mx-auto max-w-[900px]">
             <AnimatePresence>
               {examComposerOpen && isReady && doc && (

@@ -233,8 +233,8 @@ async def _finalize_document(object_id, doc: dict, raw_text: Optional[str], page
 
     word_count = len(raw_text.split())
     chunks = chunk_document(raw_text, document_id, doc["userId"])
-    condensed_context = await context_builder.build_document_context(raw_text)
-
+    # Make the extracted document available immediately. Condensation and
+    # vector indexing are useful enrichments, but neither should block chat.
     await db.documents.update_one(
         {"_id": object_id},
         {
@@ -242,7 +242,7 @@ async def _finalize_document(object_id, doc: dict, raw_text: Optional[str], page
                 "rawText": raw_text,
                 "wordCount": word_count,
                 "pageCount": page_count,
-                "condensedContext": condensed_context,
+                "condensedContext": raw_text,
                 "condensedReady": True,
                 "status": "ready",
                 "errorMessage": None,
@@ -252,8 +252,35 @@ async def _finalize_document(object_id, doc: dict, raw_text: Optional[str], page
     )
     logger.info("[document_service] Document %s ready for chat", document_id)
 
+    # Documents within the direct context budget already contain all source
+    # text, so a second set of LLM calls would only compete with the first
+    # chat request for provider rate limits.
+    # Condensation is intentionally deferred until an explicit summary job is
+    # available; firing several provider calls beside the first chat request
+    # can exhaust the model's per-minute token quota.
+
     if chunks:
         asyncio.create_task(_index_chunks_background(chunks, document_id))
+
+
+async def _build_condensed_context_background(object_id, raw_text: str) -> None:
+    """Build the complete summary after extraction so chat can start first."""
+    db = get_database()
+    try:
+        condensed_context = await context_builder.build_document_context(raw_text)
+        await db.documents.update_one(
+            {"_id": object_id},
+            {
+                "$set": {
+                    "condensedContext": condensed_context,
+                    "condensedReady": True,
+                    "updatedAt": datetime.now(timezone.utc),
+                }
+            },
+        )
+        logger.info("[document_service] Summary ready for %s", object_id)
+    except Exception as exc:
+        logger.error("[document_service] Background summary failed for %s: %s", object_id, exc)
 
 
 async def _mark_document_failed(object_id, document_id: str, exc: Exception) -> None:

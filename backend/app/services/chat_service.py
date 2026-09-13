@@ -91,8 +91,11 @@ async def stream_chat_response(
 
     accumulated = ""
     interrupted = False
+    stream_status: dict = {"complete": False}
     try:
-        async for delta in llm.stream_completion(messages, max_tokens=settings.max_output_tokens):
+        async for delta in llm.stream_completion(
+            messages, max_tokens=settings.max_output_tokens, stream_status=stream_status
+        ):
             accumulated += delta
             yield sse_event("token", {"content": delta})
     except Exception as exc:
@@ -114,7 +117,7 @@ async def stream_chat_response(
                     "messageId": str(saved["_id"]),
                     "sources": sources,
                     "createdAt": saved["createdAt"],
-                    "complete": not interrupted,
+                    "complete": not interrupted and stream_status["complete"],
                 },
             )
 

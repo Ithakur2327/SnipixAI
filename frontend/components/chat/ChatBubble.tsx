@@ -18,7 +18,7 @@ export function UserBubble({ content }: { content: string }) {
       transition={{ duration: 0.2, ease: "easeOut" }}
       className="flex justify-end"
     >
-      <div className="max-w-[85%] rounded-2xl rounded-tr-md bg-white/10 px-4 py-2.5 text-[15px] leading-7 text-white whitespace-pre-wrap break-words">
+      <div className="w-fit max-w-[min(85%,42rem)] rounded-2xl rounded-tr-md bg-white/10 px-4 py-2.5 text-[15px] leading-7 text-white whitespace-pre-wrap break-words font-apple sm:max-w-[85%]">
         {content}
       </div>
     </motion.div>
@@ -39,7 +39,7 @@ export function AssistantBubble({ content, streaming = false }: { content: strin
       >
         <AiMark />
       </div>
-      <div className="min-w-0 flex-1 text-[15px]">
+      <div className="min-w-0 flex-1 text-[15px] font-apple">
         <MarkdownContent content={content} />
         {streaming && (
           <span
