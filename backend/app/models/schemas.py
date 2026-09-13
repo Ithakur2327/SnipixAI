@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Literal, Optional
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, model_validator
 
 
 class RegisterRequest(BaseModel):
@@ -73,8 +73,14 @@ class DocumentListData(BaseModel):
 
 
 class SendMessageRequest(BaseModel):
-    message: str = Field(min_length=1, max_length=8000)
+    message: str = Field(max_length=8000)
     continuation: bool = False
+
+    @model_validator(mode="after")
+    def validate_message(self):
+        if not self.continuation and not self.message.strip():
+            raise ValueError("message must not be empty")
+        return self
 
 
 class MessageSource(BaseModel):

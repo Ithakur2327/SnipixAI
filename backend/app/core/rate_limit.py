@@ -29,7 +29,7 @@ class RateLimiter:
         cutoff = now - self.window_seconds
         with _lock:
             hits = [t for t in _buckets[key] if t > cutoff]
-            if len(hits) >= self.max_requests:
+            if self.max_requests > 0 and len(hits) >= self.max_requests:
                 _buckets[key] = hits
                 raise TooManyRequestsError(self.message)
             hits.append(now)
@@ -37,6 +37,6 @@ class RateLimiter:
 
 
 auth_rate_limiter = RateLimiter("auth", max_requests=15, window_seconds=15 * 60, message="Too many auth attempts. Please wait a few minutes and try again.")
-upload_rate_limiter = RateLimiter("upload", max_requests=25, window_seconds=60 * 60, message="Upload limit reached. Please wait before uploading more documents.")
-ai_rate_limiter = RateLimiter("ai", max_requests=60, window_seconds=60 * 60, message="AI request limit reached. Please wait before trying again.")
+upload_rate_limiter = RateLimiter("upload", max_requests=0, window_seconds=60 * 60, message="Upload limit reached. Please wait before uploading more documents.")
+ai_rate_limiter = RateLimiter("ai", max_requests=0, window_seconds=60 * 60, message="AI request limit reached. Please wait before trying again.")
 api_rate_limiter = RateLimiter("api", max_requests=500, window_seconds=15 * 60, message="Too many requests. Please slow down.")

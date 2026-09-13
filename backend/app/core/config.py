@@ -55,15 +55,16 @@ class Settings(BaseSettings):
     chunk_overlap: int = int(os.getenv("CHUNK_OVERLAP", "150"))
     retrieval_top_k: int = int(os.getenv("RETRIEVAL_TOP_K", "6"))
 
-    direct_context_char_budget: int = int(os.getenv("DIRECT_CONTEXT_CHAR_BUDGET", "100000"))
+    direct_context_char_budget: int = int(os.getenv("DIRECT_CONTEXT_CHAR_BUDGET", "12000"))
     condensed_section_char_size: int = int(os.getenv("CONDENSED_SECTION_CHAR_SIZE", "12000"))
     condensed_section_target_words: int = int(os.getenv("CONDENSED_SECTION_TARGET_WORDS", "350"))
-    chat_history_turns: int = int(os.getenv("CHAT_HISTORY_TURNS", "8"))
-    max_output_tokens: int = int(os.getenv("MAX_OUTPUT_TOKENS", "6144"))
+    chat_history_turns: int = int(os.getenv("CHAT_HISTORY_TURNS", "4"))
+    max_output_tokens: int = int(os.getenv("MAX_OUTPUT_TOKENS", "4096"))
     exam_max_output_tokens: int = int(os.getenv("EXAM_MAX_OUTPUT_TOKENS", "4096"))
 
-    free_plan_document_limit: int = int(os.getenv("FREE_PLAN_DOCUMENT_LIMIT", "20"))
-    free_plan_ai_daily_limit: int = int(os.getenv("FREE_PLAN_AI_DAILY_LIMIT", "80"))
+    # A value of 0 disables the application-level quota.
+    free_plan_document_limit: int = int(os.getenv("FREE_PLAN_DOCUMENT_LIMIT", "0"))
+    free_plan_ai_daily_limit: int = int(os.getenv("FREE_PLAN_AI_DAILY_LIMIT", "0"))
 
     class Config:
         env_file = ".env"

@@ -80,9 +80,9 @@ async def stream_chat_response(
 
     sources = [{"chunkId": m["chunk_id"], "text": m["text"], "score": m["score"]} for m in raw_matches]
 
-    condensed_context = doc.get("condensedContext")
-    if not condensed_context:
-        condensed_context = context_builder.get_fallback_context(doc.get("rawText") or "")
+    condensed_context = context_builder.get_fallback_context(
+        doc.get("condensedContext") or doc.get("rawText") or ""
+    )
     document_block = _build_document_block(doc["title"], condensed_context, raw_matches)
 
     messages = [{"role": "system", "content": f"{SYSTEM_PROMPT}\n\n{document_block}"}]
