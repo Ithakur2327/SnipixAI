@@ -32,7 +32,7 @@ def estimate_tokens(text: str) -> int:
 def _split_into_sections(text: str, section_chars: int) -> List[str]:
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=section_chars,
-        chunk_overlap=min(300, section_chars // 10),
+        chunk_overlap=0,
         separators=["\n\n", "\n", ". ", " ", ""],
     )
     return splitter.split_text(text)
@@ -51,18 +51,14 @@ def _trim_at_boundary(text: str, max_chars: int) -> str:
 
 async def _condense_section(section: str, index: int, total: int, target_words: int) -> str:
     prompt = (
-        f"You are condensing part {index + 1} of {total} of a longer document into a dense, "
-        f"faithful reference summary of about {target_words} words. Preserve every distinct "
-        "topic, concrete fact, number, name, and definition, AND the reasoning/explanation "
-        "behind each conclusion - not just the bare conclusion. A reader of only this "
-        "condensation should be able to understand *why* something is true, not just *that* "
-        "it is. Do not add opinions or information that is not present in the text, and do not "
-        "drop a topic just to shorten the text - shorten by tightening the wording instead. "
-        "Write plain prose, no headers.\n\n"
+        f"Condense part {index + 1}/{total} into about {target_words} words. Preserve every "
+        "topic, fact, number, name, definition, and the reasoning behind each conclusion. "
+        "Use only the source text; add no opinions or outside information. Do not drop topics "
+        "to shorten it; tighten wording instead. Write dense plain prose without headers.\n\n"
         f"Section text:\n{section[:MAX_SECTION_INPUT_CHARS]}"
     )
     messages = [
-        {"role": "system", "content": "You produce accurate, information-dense condensations of text for later use as reference context."},
+        {"role": "system", "content": "Produce an accurate, information-dense document condensation."},
         {"role": "user", "content": prompt},
     ]
     result = await llm.generate_completion(

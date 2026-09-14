@@ -28,7 +28,7 @@ export default function Footer() {
         }}
       >
         <span style={{ fontSize: "14px", fontWeight: 700, color: "#FFFFFF" }}>
-          Snipix<span style={{ color: "#E8590A" }}>AI</span>
+          Snipix<span style={{ color: "#F7374F" }}>AI</span>
         </span>
 
         <p style={{ fontSize: "12px", color: "rgba(255,255,255,0.2)" }}>

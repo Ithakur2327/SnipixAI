@@ -1,33 +1,49 @@
 "use client";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useDropzone, type FileRejection } from "react-dropzone";
-import { AnimatePresence } from "framer-motion";
-import { FileText, Globe, Type, UploadCloud, X } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
+import { FileText, Loader2, Paperclip, Plus, Send, UploadCloud, X } from "lucide-react";
 import { documentAPI, getApiErrorMessage } from "@/lib/api";
 import DocumentChat from "@/components/chat/DocumentChat";
 
-type InputMode = "file" | "url" | "text";
+const ACCEPTED = {
+  "application/pdf": [".pdf"],
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [".docx"],
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation": [".pptx"],
+  "text/plain": [".txt"],
+  "image/png": [".png"],
+  "image/jpeg": [".jpg", ".jpeg"],
+};
 
-const MODES: { id: InputMode; label: string; icon: typeof FileText }[] = [
-  { id: "file", label: "File", icon: UploadCloud },
-  { id: "url", label: "URL", icon: Globe },
-  { id: "text", label: "Text", icon: Type },
-];
+function looksLikeUrl(value: string): boolean {
+  const v = value.trim();
+  if (!v || /\s/.test(v)) return false;
+  if (/^https?:\/\//i.test(v)) return true;
+  if (/^www\./i.test(v)) return true;
+  return /^[a-z0-9-]+(\.[a-z0-9-]+)+(\/\S*)?$/i.test(v);
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 export default function HeroSection() {
   const [loading, setLoading] = useState(false);
-  const [inputMode, setInputMode] = useState<InputMode>("file");
-  const [text, setText] = useState("");
-  const [url, setUrl] = useState("");
+  const [content, setContent] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [instructions, setInstructions] = useState("");
+  const [showInstructions, setShowInstructions] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [documentId, setDocumentId] = useState<string | null>(null);
+
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const instructionsRef = useRef<HTMLTextAreaElement>(null);
 
   const onDrop = useCallback((accepted: File[], rejections: FileRejection[]) => {
     if (accepted[0]) {
       setFile(accepted[0]);
+      setContent("");
       setErrorMsg(null);
       return;
     }
@@ -41,25 +57,31 @@ export default function HeroSection() {
     }
   }, []);
 
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+  const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
     onDrop,
     multiple: false,
+    noClick: true,
+    noKeyboard: true,
     maxSize: 50 * 1024 * 1024,
-    accept: {
-      "application/pdf": [".pdf"],
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [".docx"],
-      "application/vnd.openxmlformats-officedocument.presentationml.presentation": [".pptx"],
-      "text/plain": [".txt"],
-      "image/png": [".png"],
-      "image/jpeg": [".jpg", ".jpeg"],
-    },
+    accept: ACCEPTED,
   });
 
-  const canSend =
-    !loading &&
-    ((inputMode === "text" && text.trim().split(/\s+/).length >= 5) ||
-      (inputMode === "url" && url.trim().length > 0) ||
-      (inputMode === "file" && file !== null));
+  const trimmedContent = content.trim();
+  const isUrl = !file && looksLikeUrl(trimmedContent);
+  const wordCount = trimmedContent ? trimmedContent.split(/\s+/).filter(Boolean).length : 0;
+  const canSend = !loading && (file !== null || (trimmedContent.length > 0 && (isUrl || wordCount >= 5)));
+
+  const autoResize = useCallback((el: HTMLTextAreaElement | null, max = 160) => {
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, max)}px`;
+  }, []);
+
+  useEffect(() => { autoResize(textareaRef.current); }, [content, autoResize]);
+  useEffect(() => { autoResize(instructionsRef.current, 90); }, [instructions, autoResize]);
+  useEffect(() => {
+    if (showInstructions) requestAnimationFrame(() => instructionsRef.current?.focus());
+  }, [showInstructions]);
 
   const handleGenerate = async () => {
     if (!canSend) return;
@@ -67,14 +89,14 @@ export default function HeroSection() {
     setLoading(true);
     try {
       let newDocId: string;
-      if (inputMode === "file" && file) {
+      if (file) {
         const { data } = await documentAPI.uploadFile(file);
         newDocId = data.data.document.id;
-      } else if (inputMode === "url") {
-        const { data } = await documentAPI.createFromUrl(url.trim());
+      } else if (isUrl) {
+        const { data } = await documentAPI.createFromUrl(trimmedContent);
         newDocId = data.data.document.id;
       } else {
-        const { data } = await documentAPI.createFromText(text.trim(), `Summary – ${new Date().toLocaleDateString()}`);
+        const { data } = await documentAPI.createFromText(trimmedContent, `Summary – ${new Date().toLocaleDateString()}`);
         newDocId = data.data.document.id;
       }
       setDocumentId(newDocId);
@@ -85,14 +107,29 @@ export default function HeroSection() {
     }
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Only auto-submit on Enter when the field looks like a finished URL
+    // (single line, no spaces) — a pasted/typed article can span many
+    // lines, so Enter must stay a normal newline for raw text.
+    if (e.key === "Enter" && !e.shiftKey && isUrl) {
+      e.preventDefault();
+      void handleGenerate();
+    }
+  };
+
+  const removeFile = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setFile(null);
+    requestAnimationFrame(() => textareaRef.current?.focus());
+  };
+
   const handleCloseChat = () => {
     setDocumentId(null);
     setErrorMsg(null);
-    setText("");
-    setUrl("");
+    setContent("");
     setFile(null);
     setInstructions("");
-    setInputMode("file");
+    setShowInstructions(false);
   };
 
   return (
@@ -102,13 +139,51 @@ export default function HeroSection() {
         @keyframes snx-in { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0); } }
         .snx-l1 { animation: snx-in 0.6s cubic-bezier(0.22,1,0.36,1) 0.05s both; }
         .snx-l2 { animation: snx-in 0.6s cubic-bezier(0.22,1,0.36,1) 0.15s both; }
-        .snx-l3 { animation: snx-in 0.6s cubic-bezier(0.22,1,0.36,1) 0.25s both; }
         .snx-r1 { animation: snx-in 0.6s cubic-bezier(0.22,1,0.36,1) 0.2s both; }
-        .snx-mode-btn { transition: all 0.15s; }
-        .snx-panel-input { transition: border-color 0.15s, background 0.15s; }
-        .snx-panel-input:focus { border-color: rgba(247,55,79,0.4) !important; background: rgba(255,255,255,0.05) !important; }
-        .snx-dropzone { transition: border-color 0.2s, background 0.2s; }
-        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .snx-composer { position: relative; transition: border-color 0.2s ease; }
+        .snx-composer.drag { border-color: rgba(247,55,79,0.55) !important; }
+
+        .snx-composer-textarea {
+          width: 100%; background: transparent; border: none; outline: none; resize: none;
+          color: #fff; font-size: 14.5px; line-height: 1.6; font-family: var(--font-inter), sans-serif;
+          padding: 2px 2px 4px;
+        }
+        .snx-composer-textarea::placeholder { color: rgba(255,255,255,0.32); }
+
+        .snx-instructions-textarea {
+          width: 100%; background: transparent; border: none; outline: none; resize: none;
+          color: rgba(255,255,255,0.82); font-size: 12.5px; line-height: 1.55; font-family: var(--font-inter), sans-serif;
+          padding: 0;
+        }
+        .snx-instructions-textarea::placeholder { color: rgba(255,255,255,0.28); }
+
+        .snx-toolbar-btn {
+          display: inline-flex; align-items: center; gap: 6px;
+          height: 32px; padding: 0 11px; border-radius: 9px; border: 1px solid rgba(255,255,255,0.09);
+          background: rgba(255,255,255,0.03); color: rgba(255,255,255,0.55);
+          font-size: 12px; font-weight: 600; cursor: pointer;
+          transition: background 0.15s, border-color 0.15s, color 0.15s;
+          font-family: var(--font-inter), sans-serif;
+        }
+        .snx-toolbar-btn:hover { background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.85); }
+        .snx-toolbar-btn.active { color: #F7374F; border-color: rgba(247,55,79,0.35); background: rgba(247,55,79,0.08); }
+        .snx-attach-btn {
+          display: inline-flex; align-items: center; justify-content: center;
+          width: 32px; height: 32px; border-radius: 9px; border: 1px solid rgba(255,255,255,0.09);
+          background: rgba(255,255,255,0.03); color: rgba(255,255,255,0.55); cursor: pointer;
+          transition: background 0.15s, color 0.15s;
+        }
+        .snx-attach-btn:hover { background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.85); }
+
+        .snx-send-btn {
+          display: inline-flex; align-items: center; justify-content: center;
+          width: 34px; height: 34px; border-radius: 50%; border: none; cursor: pointer;
+          transition: opacity 0.2s, transform 0.15s, box-shadow 0.2s;
+        }
+        .snx-send-btn:not(:disabled):hover { transform: translateY(-1px); }
+        .snx-send-btn:not(:disabled):active { transform: scale(0.94); }
+
         @media (max-width: 900px) {
           .snx-hero-grid { grid-template-columns: 1fr !important; }
           .snx-hero-left { text-align: center; }
@@ -132,228 +207,143 @@ export default function HeroSection() {
           >
             Summarize <span style={{ color: "#F7374F" }}>anything</span>, instantly
           </h1>
-          <p className="snx-l2" style={{ fontSize: "clamp(14px, 1.5vw, 16px)", color: "rgba(255,255,255,0.35)", lineHeight: 1.8, maxWidth: "460px", margin: "0 0 28px" }}>
+          <p className="snx-l2" style={{ fontSize: "clamp(14px, 1.5vw, 16px)", color: "rgba(255,255,255,0.35)", lineHeight: 1.8, maxWidth: "460px", margin: "0" }}>
             Upload a PDF, paste a link, or drop in raw text. Then chat with it naturally — ask for exactly the summary you want, quiz yourself on it, or dig into the details.
           </p>
-          <div className="snx-l3" style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-            {["PDF", "DOCX", "PPT", "URL", "Image", "Text"].map((t) => (
-              <span
-                key={t}
-                style={{
-                  fontSize: "11px",
-                  fontWeight: 600,
-                  color: "rgba(255,255,255,0.45)",
-                  background: "rgba(255,255,255,0.04)",
-                  border: "1px solid rgba(255,255,255,0.08)",
-                  borderRadius: "7px",
-                  padding: "5px 11px",
-                }}
-              >
-                {t}
-              </span>
-            ))}
-          </div>
         </div>
 
         <div
-          className="snx-r1"
+          {...getRootProps()}
+          className={`snx-r1 snx-composer${isDragActive ? " drag" : ""}`}
           style={{
             background: "#0A0A0A",
             border: "1px solid rgba(255,255,255,0.09)",
             borderRadius: "20px",
-            padding: "20px",
+            padding: "16px",
             boxShadow: "0 8px 40px rgba(0,0,0,0.5)",
           }}
         >
-          <div style={{ display: "flex", gap: "6px", marginBottom: "16px", background: "rgba(255,255,255,0.03)", borderRadius: "10px", padding: "3px" }}>
-            {MODES.map((m) => {
-              const Icon = m.icon;
-              const active = inputMode === m.id;
-              return (
-                <button
-                  key={m.id}
-                  className="snx-mode-btn"
-                  onClick={() => {
-                    setInputMode(m.id);
-                    setErrorMsg(null);
-                  }}
-                  style={{
-                    flex: 1,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: "6px",
-                    padding: "9px 0",
-                    borderRadius: "8px",
-                    border: "none",
-                    cursor: "pointer",
-                    background: active ? "rgba(247,55,79,0.14)" : "transparent",
-                    color: active ? "#F7374F" : "rgba(255,255,255,0.4)",
-                    fontSize: "12.5px",
-                    fontWeight: 600,
-                  }}
-                >
-                  <Icon size={14} />
-                  {m.label}
+          <input {...getInputProps()} />
+
+          <AnimatePresence>
+            {isDragActive && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.15 }}
+                style={{
+                  position: "absolute", inset: 0, zIndex: 5, borderRadius: "19px",
+                  background: "rgba(6,6,6,0.92)", border: "2px dashed rgba(247,55,79,0.55)",
+                  display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "10px",
+                }}
+              >
+                <UploadCloud size={26} color="#F7374F" />
+                <p style={{ fontSize: "13px", fontWeight: 600, color: "#fff" }}>Drop your file here</p>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <div style={{ minHeight: "84px", display: "flex", flexDirection: "column", justifyContent: "center" }}>
+            {file ? (
+              <motion.div
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                style={{
+                  display: "flex", alignItems: "center", gap: "10px",
+                  background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)",
+                  borderRadius: "12px", padding: "10px 12px",
+                }}
+              >
+                <div style={{ width: "32px", height: "32px", borderRadius: "8px", background: "rgba(247,55,79,0.12)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <FileText size={15} color="#F7374F" />
+                </div>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <p style={{ fontSize: "13px", fontWeight: 600, color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{file.name}</p>
+                  <p style={{ fontSize: "11px", color: "rgba(255,255,255,0.32)" }}>{formatFileSize(file.size)}</p>
+                </div>
+                <button onClick={removeFile} aria-label="Remove file" style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "26px", height: "26px", borderRadius: "7px", border: "none", background: "transparent", color: "rgba(255,255,255,0.4)", cursor: "pointer", flexShrink: 0 }}>
+                  <X size={14} />
                 </button>
-              );
-            })}
+              </motion.div>
+            ) : (
+              <textarea
+                ref={textareaRef}
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Paste a link, or type / paste your text here…"
+                rows={1}
+                className="snx-composer-textarea"
+              />
+            )}
           </div>
 
-          {inputMode === "file" && (
-            <div
-              {...getRootProps()}
-              className="snx-dropzone"
-              style={{
-                border: `1.5px dashed ${isDragActive ? "rgba(247,55,79,0.5)" : "rgba(255,255,255,0.12)"}`,
-                borderRadius: "14px",
-                padding: "28px 16px",
-                textAlign: "center",
-                cursor: "pointer",
-                background: isDragActive ? "rgba(247,55,79,0.04)" : "transparent",
-                minHeight: "120px",
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: "8px",
-              }}
-            >
-              <input {...getInputProps()} />
-              {file ? (
-                <>
-                  <FileText size={22} color="#F7374F" />
-                  <p style={{ fontSize: "13px", fontWeight: 600, color: "#fff", maxWidth: "260px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {file.name}
-                  </p>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setFile(null);
-                    }}
-                    style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "11px", color: "rgba(255,255,255,0.35)", background: "none", border: "none", cursor: "pointer" }}
-                  >
-                    <X size={11} /> Remove
-                  </button>
-                </>
-              ) : (
-                <>
-                  <UploadCloud size={22} color="rgba(255,255,255,0.3)" />
-                  <p style={{ fontSize: "12.5px", color: "rgba(255,255,255,0.4)" }}>
-                    Drop a file here, or <span style={{ color: "#F7374F", fontWeight: 600 }}>browse</span>
-                  </p>
-                  <p style={{ fontSize: "10.5px", color: "rgba(255,255,255,0.2)" }}>PDF · DOCX · PPT · TXT · Image, up to 50MB</p>
-                </>
-              )}
-            </div>
-          )}
-
-          {inputMode === "url" && (
-            <input
-              type="url"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder="https://example.com/article"
-              className="snx-panel-input"
-              style={{
-                width: "100%",
-                background: "rgba(255,255,255,0.03)",
-                border: "1px solid rgba(255,255,255,0.1)",
-                borderRadius: "12px",
-                padding: "14px",
-                color: "#fff",
-                fontSize: "13.5px",
-                outline: "none",
-              }}
-            />
-          )}
-
-          {inputMode === "text" && (
-            <textarea
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              placeholder="Paste your content here…"
-              rows={5}
-              className="snx-panel-input"
-              style={{
-                width: "100%",
-                background: "rgba(255,255,255,0.03)",
-                border: "1px solid rgba(255,255,255,0.1)",
-                borderRadius: "12px",
-                padding: "14px",
-                color: "#fff",
-                fontSize: "13.5px",
-                lineHeight: 1.6,
-                outline: "none",
-                resize: "none",
-                fontFamily: "var(--font-inter), sans-serif",
-              }}
-            />
-          )}
-
-          <div style={{ marginTop: "12px" }}>
-            <label style={{ fontSize: "11px", color: "rgba(255,255,255,0.3)", marginBottom: "6px", display: "block" }}>
-              How should I summarize it? (optional)
-            </label>
-            <textarea
-              ref={instructionsRef}
-              value={instructions}
-              onChange={(e) => setInstructions(e.target.value)}
-              placeholder="e.g. bullet points, ELI5, focus on the results…"
-              rows={1}
-              className="snx-panel-input"
-              style={{
-                width: "100%",
-                background: "rgba(255,255,255,0.03)",
-                border: "1px solid rgba(255,255,255,0.08)",
-                borderRadius: "10px",
-                padding: "10px 12px",
-                color: "#fff",
-                fontSize: "12.5px",
-                outline: "none",
-                resize: "none",
-                fontFamily: "var(--font-inter), sans-serif",
-              }}
-            />
-          </div>
+          <AnimatePresence initial={false}>
+            {showInstructions && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+                style={{ overflow: "hidden" }}
+              >
+                <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)", marginTop: "8px", paddingTop: "10px" }}>
+                  <textarea
+                    ref={instructionsRef}
+                    value={instructions}
+                    onChange={(e) => setInstructions(e.target.value)}
+                    placeholder="Add instructions — e.g. bullet points, ELI5, focus on the results…"
+                    rows={1}
+                    className="snx-instructions-textarea"
+                  />
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {errorMsg && (
-            <p style={{ marginTop: "12px", fontSize: "12px", color: "rgba(255,255,255,0.6)", background: "rgba(247,55,79,0.08)", border: "1px solid rgba(247,55,79,0.2)", borderRadius: "10px", padding: "10px 12px" }}>
+            <p style={{ marginTop: "10px", fontSize: "12px", color: "rgba(255,255,255,0.6)", background: "rgba(247,55,79,0.08)", border: "1px solid rgba(247,55,79,0.2)", borderRadius: "10px", padding: "9px 11px" }}>
               {errorMsg}
             </p>
           )}
 
-          <button
-            onClick={handleGenerate}
-            disabled={!canSend}
-            style={{
-              width: "100%",
-              marginTop: "14px",
-              padding: "13px",
-              borderRadius: "12px",
-              border: "none",
-              background: canSend ? "#F7374F" : "rgba(247,55,79,0.25)",
-              color: "#fff",
-              fontSize: "13.5px",
-              fontWeight: 700,
-              cursor: canSend ? "pointer" : "not-allowed",
-              boxShadow: canSend ? "0 0 22px rgba(247,55,79,0.35)" : "none",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: "8px",
-              transition: "all 0.2s",
-            }}
-          >
-            {loading ? (
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" style={{ animation: "spin 0.9s linear infinite" }}>
-                <circle cx="12" cy="12" r="9" stroke="rgba(255,255,255,0.25)" strokeWidth="2.5" />
-                <path d="M12 3a9 9 0 0 1 9 9" stroke="white" strokeWidth="2.5" strokeLinecap="round" />
-              </svg>
-            ) : (
-              "Generate summary"
-            )}
-          </button>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px", marginTop: "12px", paddingTop: "12px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+              <button type="button" className="snx-attach-btn" onClick={open} title="Attach a file" aria-label="Attach a file">
+                <Paperclip size={15} />
+              </button>
+              <button
+                type="button"
+                className={`snx-toolbar-btn${showInstructions ? " active" : ""}`}
+                onClick={(e) => { e.stopPropagation(); setShowInstructions((v) => !v); }}
+                title="Add instructions for the summary"
+              >
+                <Plus size={13} />
+                Instructions
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleGenerate}
+              disabled={!canSend}
+              className="snx-send-btn"
+              aria-label="Generate summary"
+              title="Generate summary"
+              style={{
+                background: canSend ? "#F7374F" : "rgba(247,55,79,0.2)",
+                boxShadow: canSend ? "0 0 18px rgba(247,55,79,0.35)" : "none",
+                cursor: canSend ? "pointer" : "not-allowed",
+              }}
+            >
+              {loading ? <Loader2 size={15} color="#fff" className="animate-spin" /> : <Send size={15} color="#fff" />}
+            </button>
+          </div>
+
+          <p style={{ marginTop: "10px", fontSize: "10.5px", color: "rgba(255,255,255,0.2)", textAlign: "center" }}>
+            PDF · DOCX · PPT · TXT · Image · or paste a link — up to 50MB
+          </p>
         </div>
       </div>
 
