@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useDropzone, type FileRejection } from "react-dropzone";
 import { AnimatePresence, motion } from "framer-motion";
-import { FileText, Loader2, Paperclip, Plus, Send, UploadCloud, X } from "lucide-react";
+import { FileText, Loader2, Paperclip, Send, UploadCloud, X } from "lucide-react";
 import { documentAPI, getApiErrorMessage } from "@/lib/api";
 import DocumentChat from "@/components/chat/DocumentChat";
 
@@ -32,13 +32,12 @@ export default function HeroSection() {
   const [loading, setLoading] = useState(false);
   const [content, setContent] = useState("");
   const [file, setFile] = useState<File | null>(null);
-  const [instructions, setInstructions] = useState("");
-  const [showInstructions, setShowInstructions] = useState(false);
+  const [isOpeningChat, setIsOpeningChat] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [documentId, setDocumentId] = useState<string | null>(null);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const instructionsRef = useRef<HTMLTextAreaElement>(null);
+  const chatTransitionTimerRef = useRef<number | null>(null);
 
   const onDrop = useCallback((accepted: File[], rejections: FileRejection[]) => {
     if (accepted[0]) {
@@ -71,17 +70,13 @@ export default function HeroSection() {
   const wordCount = trimmedContent ? trimmedContent.split(/\s+/).filter(Boolean).length : 0;
   const canSend = !loading && (file !== null || (trimmedContent.length > 0 && (isUrl || wordCount >= 5)));
 
-  const autoResize = useCallback((el: HTMLTextAreaElement | null, max = 160) => {
+  const autoResize = useCallback((el: HTMLTextAreaElement | null, max = 140) => {
     if (!el) return;
     el.style.height = "auto";
     el.style.height = `${Math.min(el.scrollHeight, max)}px`;
   }, []);
 
   useEffect(() => { autoResize(textareaRef.current); }, [content, autoResize]);
-  useEffect(() => { autoResize(instructionsRef.current, 90); }, [instructions, autoResize]);
-  useEffect(() => {
-    if (showInstructions) requestAnimationFrame(() => instructionsRef.current?.focus());
-  }, [showInstructions]);
 
   const handleGenerate = async () => {
     if (!canSend) return;
@@ -99,7 +94,11 @@ export default function HeroSection() {
         const { data } = await documentAPI.createFromText(trimmedContent, `Summary – ${new Date().toLocaleDateString()}`);
         newDocId = data.data.document.id;
       }
-      setDocumentId(newDocId);
+      setIsOpeningChat(true);
+      chatTransitionTimerRef.current = window.setTimeout(() => {
+        setDocumentId(newDocId);
+        setIsOpeningChat(false);
+      }, 320);
     } catch (err) {
       setErrorMsg(getApiErrorMessage(err));
     } finally {
@@ -124,103 +123,225 @@ export default function HeroSection() {
   };
 
   const handleCloseChat = () => {
+    if (chatTransitionTimerRef.current !== null) {
+      window.clearTimeout(chatTransitionTimerRef.current);
+      chatTransitionTimerRef.current = null;
+    }
+    setIsOpeningChat(false);
     setDocumentId(null);
     setErrorMsg(null);
     setContent("");
     setFile(null);
-    setInstructions("");
-    setShowInstructions(false);
   };
 
+  useEffect(() => () => {
+    if (chatTransitionTimerRef.current !== null) {
+      window.clearTimeout(chatTransitionTimerRef.current);
+    }
+  }, []);
+
   return (
-    <section style={{ minHeight: "calc(100dvh - 64px)", display: "flex", alignItems: "center", background: "#000000", padding: "clamp(28px,5vw,64px) clamp(16px,4vw,64px)" }}>
+    <section
+      style={{
+        minHeight: "calc(100dvh - 64px)",
+        display: "flex",
+        alignItems: "center",
+        background: "#000000",
+        padding: "clamp(24px,6vw,60px) clamp(16px,5vw,64px)",
+      }}
+    >
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@700&display=swap');
-        @keyframes snx-in { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0); } }
-        .snx-l1 { animation: snx-in 0.6s cubic-bezier(0.22,1,0.36,1) 0.05s both; }
-        .snx-l2 { animation: snx-in 0.6s cubic-bezier(0.22,1,0.36,1) 0.15s both; }
-        .snx-r1 { animation: snx-in 0.6s cubic-bezier(0.22,1,0.36,1) 0.2s both; }
 
-        .snx-composer { position: relative; transition: border-color 0.2s ease; }
+        /* ===== 8K-crisp rendering: sharp edges, no blurry antialiasing ===== */
+        .snx-v10-wrap, .snx-v10-wrap * {
+          -webkit-font-smoothing: antialiased;
+          -moz-osx-font-smoothing: grayscale;
+          text-rendering: optimizeLegibility;
+        }
+
+        @keyframes snx-in { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0); } }
+        .snx-l0 { animation: snx-in 0.55s cubic-bezier(0.22,1,0.36,1) 0s both; }
+        .snx-l1 { animation: snx-in 0.55s cubic-bezier(0.22,1,0.36,1) 0.08s both; }
+        .snx-l2 { animation: snx-in 0.55s cubic-bezier(0.22,1,0.36,1) 0.16s both; }
+        .snx-l3 { animation: snx-in 0.55s cubic-bezier(0.22,1,0.36,1) 0.24s both; }
+
+        .snx-v10-wrap { max-width: 720px; margin: 0 auto; width: 100%; text-align: center; position: relative; }
+        .snx-v10-wrap > * { position: relative; z-index: 1; }
+        .snx-v10-wrap h1 { text-shadow: 0 2px 0 rgba(255,255,255,0.1), 0 8px 22px rgba(0,0,0,0.75); }
+        .snx-v10-wrap > p { text-shadow: 0 1px 10px rgba(255,255,255,0.08); }
+        .snx-hero-copy { width: min(100%, 520px); margin-left: auto; margin-right: auto; }
+        .snx-hero-composer { width: min(100%, 720px); max-width: 100%; }
+        .snx-hero-transition h1, .snx-hero-transition .snx-hero-copy {
+          opacity: 0; transform: translateY(-12px); transition: opacity 0.24s ease, transform 0.24s ease;
+        }
+        .snx-hero-transition .snx-hero-composer {
+          transform: translateY(72px) scaleY(0.62); transform-origin: top center;
+          transition: transform 0.32s cubic-bezier(0.22,1,0.36,1), box-shadow 0.32s ease;
+          box-shadow: 0 6px 16px rgba(0,0,0,0.45) !important;
+        }
+
+        .snx-v10-before {
+          color: rgba(255,255,255,0.52);
+          text-decoration: line-through;
+          text-decoration-color: #F7374F;
+          text-decoration-thickness: 3px;
+          text-underline-offset: 2px;
+          text-shadow: 0 1px 0 rgba(255,255,255,0.05), 0 2px 10px rgba(0,0,0,0.45);
+        }
+
+        .snx-v10-accent {
+          text-shadow:
+            0 1px 0 rgba(255,255,255,0.12),
+            0 2px 6px rgba(0,0,0,0.6);
+        }
+
+        .snx-composer {
+          position: relative;
+          text-align: left;
+          transition: border-color 0.2s ease, box-shadow 0.25s ease, transform 0.25s ease;
+          box-shadow: 0 14px 36px rgba(0,0,0,0.72), 0 2px 12px rgba(255,255,255,0.06), inset 0 1px 0 rgba(255,255,255,0.13);
+        }
         .snx-composer.drag { border-color: rgba(247,55,79,0.55) !important; }
+        @media (hover: hover) {
+          .snx-composer:hover { transform: translateY(-2px); box-shadow: 0 20px 46px rgba(0,0,0,0.78), 0 4px 18px rgba(255,255,255,0.08), inset 0 1px 0 rgba(255,255,255,0.17); }
+        }
 
         .snx-composer-textarea {
           width: 100%; background: transparent; border: none; outline: none; resize: none;
-          color: #fff; font-size: 14.5px; line-height: 1.6; font-family: var(--font-inter), sans-serif;
-          padding: 2px 2px 4px;
+          color: #fff; font-size: 14px; line-height: 1.55; font-family: var(--font-inter), sans-serif;
+          padding: 2px 2px 3px;
         }
-        .snx-composer-textarea::placeholder { color: rgba(255,255,255,0.32); }
-
-        .snx-instructions-textarea {
-          width: 100%; background: transparent; border: none; outline: none; resize: none;
-          color: rgba(255,255,255,0.82); font-size: 12.5px; line-height: 1.55; font-family: var(--font-inter), sans-serif;
-          padding: 0;
-        }
-        .snx-instructions-textarea::placeholder { color: rgba(255,255,255,0.28); }
+        .snx-composer-textarea::placeholder { color: rgba(255,255,255,0.36); text-shadow: none; }
 
         .snx-toolbar-btn {
           display: inline-flex; align-items: center; gap: 6px;
-          height: 32px; padding: 0 11px; border-radius: 9px; border: 1px solid rgba(255,255,255,0.09);
-          background: rgba(255,255,255,0.03); color: rgba(255,255,255,0.55);
-          font-size: 12px; font-weight: 600; cursor: pointer;
+          height: 30px; padding: 0 10px; border-radius: 9px; border: 1px solid rgba(255,255,255,0.1);
+          background: rgba(255,255,255,0.055); color: rgba(255,255,255,0.74);
+          font-size: 11.5px; font-weight: 600; cursor: pointer;
           transition: background 0.15s, border-color 0.15s, color 0.15s;
           font-family: var(--font-inter), sans-serif;
+          white-space: nowrap;
         }
-        .snx-toolbar-btn:hover { background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.85); }
+        .snx-toolbar-btn:hover { background: rgba(255,255,255,0.09); color: #fff; }
         .snx-toolbar-btn.active { color: #F7374F; border-color: rgba(247,55,79,0.35); background: rgba(247,55,79,0.08); }
+
         .snx-attach-btn {
           display: inline-flex; align-items: center; justify-content: center;
-          width: 32px; height: 32px; border-radius: 9px; border: 1px solid rgba(255,255,255,0.09);
-          background: rgba(255,255,255,0.03); color: rgba(255,255,255,0.55); cursor: pointer;
+          width: 30px; height: 30px; border-radius: 9px; border: 1px solid rgba(255,255,255,0.1);
+          background: rgba(255,255,255,0.055); color: rgba(255,255,255,0.74); cursor: pointer;
           transition: background 0.15s, color 0.15s;
+          flex-shrink: 0;
         }
-        .snx-attach-btn:hover { background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.85); }
+        .snx-attach-btn:hover { background: rgba(255,255,255,0.09); color: #fff; }
 
         .snx-send-btn {
           display: inline-flex; align-items: center; justify-content: center;
-          width: 34px; height: 34px; border-radius: 50%; border: none; cursor: pointer;
+          width: 32px; height: 32px; border-radius: 50%; border: none; cursor: pointer;
           transition: opacity 0.2s, transform 0.15s, box-shadow 0.2s;
+          flex-shrink: 0;
         }
         .snx-send-btn:not(:disabled):hover { transform: translateY(-1px); }
         .snx-send-btn:not(:disabled):active { transform: scale(0.94); }
 
-        @media (max-width: 900px) {
-          .snx-hero-grid { grid-template-columns: 1fr !important; }
-          .snx-hero-left { text-align: center; }
+        /* ===== Responsive scaling ===== */
+        @media (max-width: 640px) {
+          .snx-v10-wrap { width: min(100%, 720px); padding: 0 4px; transform: translateY(clamp(-46px, -9vw, -28px)); }
+          .snx-v10-wrap > p { line-height: 1.6; }
+          .snx-composer { margin-top: clamp(54px, 12vw, 70px) !important; }
+          .snx-composer-textarea { font-size: clamp(12px, 3.2vw, 13px) !important; line-height: 1.45; }
+          .snx-toolbar-row { gap: 6px !important; }
+          .snx-toolbar-btn span.snx-btn-label { display: none; }
+          .snx-toolbar-btn { width: 30px; padding: 0; justify-content: center; }
+        }
+
+        @media (min-width: 641px) and (max-width: 768px) {
+          .snx-v10-wrap { transform: translateY(-28px); }
+          .snx-composer { margin-top: 56px !important; }
+          .snx-composer-textarea { font-size: 13px !important; line-height: 1.45; }
+        }
+
+        @media (max-width: 400px) {
+          .snx-composer { padding: 11px !important; border-radius: 15px !important; }
+          .snx-composer { margin-top: 52px !important; }
+          .snx-composer-textarea { font-size: 12px !important; line-height: 1.4; }
+          .snx-v10-wrap { padding: 0; }
+        }
+
+        @media (min-width: 1180px) {
+          .snx-v10-wrap { max-width: 760px; }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .snx-l0, .snx-l1, .snx-l2, .snx-l3 { animation: none !important; }
+          .snx-composer:hover { transform: none !important; }
         }
       `}</style>
 
-      <div className="snx-hero-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "clamp(32px,5vw,72px)", maxWidth: "1180px", margin: "0 auto", width: "100%", alignItems: "center" }}>
-        <div className="snx-hero-left">
-          <h1
-            className="snx-l1"
-            style={{
-              fontFamily: "'Josefin Sans','Arial Black',sans-serif",
-              fontSize: "clamp(28px, 3.6vw, 46px)",
-              fontWeight: 700,
-              lineHeight: 1.12,
-              letterSpacing: "0.5px",
-              margin: "0 0 18px",
-              textTransform: "uppercase",
-              color: "#FFFFFF",
-            }}
-          >
-            Summarize <span style={{ color: "#F7374F" }}>anything</span>, instantly
-          </h1>
-          <p className="snx-l2" style={{ fontSize: "clamp(14px, 1.5vw, 16px)", color: "rgba(255,255,255,0.35)", lineHeight: 1.8, maxWidth: "460px", margin: "0" }}>
-            Upload a PDF, paste a link, or drop in raw text. Then chat with it naturally — ask for exactly the summary you want, quiz yourself on it, or dig into the details.
-          </p>
-        </div>
+      <div className={`snx-v10-wrap${isOpeningChat ? " snx-hero-transition" : ""}`}>
+        <h1
+          className="snx-l0"
+          style={{
+            fontFamily: "'Josefin Sans','Arial Black',sans-serif",
+            fontSize: "clamp(24px, 5vw, 42px)",
+            fontWeight: 700,
+            lineHeight: 1.15,
+            letterSpacing: "0.5px",
+            margin: 0,
+            textTransform: "uppercase",
+          }}
+        >
+          <span className="snx-v10-before">Hours of reading.</span>
+        </h1>
+
+        <h1
+          className="snx-l1 snx-v10-accent"
+          style={{
+            fontFamily: "'Josefin Sans','Arial Black',sans-serif",
+            fontSize: "clamp(24px, 5vw, 42px)",
+            fontWeight: 700,
+            lineHeight: 1.15,
+            letterSpacing: "0.5px",
+            margin: "2px 0 0",
+            textTransform: "uppercase",
+            color: "#F7374F",
+          }}
+        >
+          Instant clarity.
+        </h1>
+
+        <p
+          className="snx-l2 snx-hero-copy"
+          style={{
+            fontSize: "clamp(13px, 1.6vw, 16px)",
+            color: "rgba(255,255,255,0.42)",
+            lineHeight: 1.75,
+            maxWidth: "100%",
+            margin: "clamp(14px, 3vw, 20px) auto 0",
+            padding: "0 8px",
+          }}
+        >
+          SnipixAI reads your PDFs, docs, slides, images, or links and turns them into a
+          clear summary — then chats with you about it, and builds a quiz to test what stuck.
+        </p>
 
         <div
           {...getRootProps()}
-          className={`snx-r1 snx-composer${isDragActive ? " drag" : ""}`}
+          className={`snx-l3 snx-composer snx-hero-composer${isDragActive ? " drag" : ""}`}
           style={{
-            background: "#0A0A0A",
-            border: "1px solid rgba(255,255,255,0.09)",
+            background: "linear-gradient(180deg, #0D0D0F 0%, #070708 100%)",
+            border: "1px solid rgba(255,255,255,0.12)",
             borderRadius: "20px",
-            padding: "16px",
-            boxShadow: "0 8px 40px rgba(0,0,0,0.5)",
+            padding: "13px 15px",
+            boxShadow: [
+              "0 1px 0 rgba(255,255,255,0.07) inset",
+              "0 -1px 0 rgba(0,0,0,0.5) inset",
+              "0 1px 2px rgba(0,0,0,0.9)",
+              "0 18px 38px -14px rgba(0,0,0,0.7)",
+              "0 10px 30px -8px rgba(247,55,79,0.1)",
+            ].join(", "),
+            marginTop: "clamp(22px, 4vw, 34px)",
+            width: "100%",
           }}
         >
           <input {...getInputProps()} />
@@ -238,13 +359,13 @@ export default function HeroSection() {
                   display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "10px",
                 }}
               >
-                <UploadCloud size={26} color="#F7374F" />
+                <UploadCloud size={24} color="#F7374F" />
                 <p style={{ fontSize: "13px", fontWeight: 600, color: "#fff" }}>Drop your file here</p>
               </motion.div>
             )}
           </AnimatePresence>
 
-          <div style={{ minHeight: "84px", display: "flex", flexDirection: "column", justifyContent: "center" }}>
+          <div style={{ minHeight: "50px", display: "flex", flexDirection: "column", justifyContent: "center" }}>
             {file ? (
               <motion.div
                 initial={{ opacity: 0, y: 4 }}
@@ -252,18 +373,18 @@ export default function HeroSection() {
                 style={{
                   display: "flex", alignItems: "center", gap: "10px",
                   background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)",
-                  borderRadius: "12px", padding: "10px 12px",
+                  borderRadius: "12px", padding: "9px 11px",
                 }}
               >
-                <div style={{ width: "32px", height: "32px", borderRadius: "8px", background: "rgba(247,55,79,0.12)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <FileText size={15} color="#F7374F" />
+                <div style={{ width: "30px", height: "30px", borderRadius: "8px", background: "rgba(247,55,79,0.12)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <FileText size={14} color="#F7374F" />
                 </div>
                 <div style={{ minWidth: 0, flex: 1 }}>
                   <p style={{ fontSize: "13px", fontWeight: 600, color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{file.name}</p>
-                  <p style={{ fontSize: "11px", color: "rgba(255,255,255,0.32)" }}>{formatFileSize(file.size)}</p>
+                  <p style={{ fontSize: "11px", color: "rgba(255,255,255,0.52)" }}>{formatFileSize(file.size)}</p>
                 </div>
-                <button onClick={removeFile} aria-label="Remove file" style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "26px", height: "26px", borderRadius: "7px", border: "none", background: "transparent", color: "rgba(255,255,255,0.4)", cursor: "pointer", flexShrink: 0 }}>
-                  <X size={14} />
+                <button onClick={removeFile} aria-label="Remove file" style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "24px", height: "24px", borderRadius: "7px", border: "none", background: "transparent", color: "rgba(255,255,255,0.4)", cursor: "pointer", flexShrink: 0 }}>
+                  <X size={13} />
                 </button>
               </motion.div>
             ) : (
@@ -272,55 +393,26 @@ export default function HeroSection() {
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Paste a link, or type / paste your text here…"
+                placeholder="Add a file, link, or text to begin…"
                 rows={1}
                 className="snx-composer-textarea"
               />
             )}
           </div>
 
-          <AnimatePresence initial={false}>
-            {showInstructions && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: "auto" }}
-                exit={{ opacity: 0, height: 0 }}
-                transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-                style={{ overflow: "hidden" }}
-              >
-                <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)", marginTop: "8px", paddingTop: "10px" }}>
-                  <textarea
-                    ref={instructionsRef}
-                    value={instructions}
-                    onChange={(e) => setInstructions(e.target.value)}
-                    placeholder="Add instructions — e.g. bullet points, ELI5, focus on the results…"
-                    rows={1}
-                    className="snx-instructions-textarea"
-                  />
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
           {errorMsg && (
-            <p style={{ marginTop: "10px", fontSize: "12px", color: "rgba(255,255,255,0.6)", background: "rgba(247,55,79,0.08)", border: "1px solid rgba(247,55,79,0.2)", borderRadius: "10px", padding: "9px 11px" }}>
+            <p style={{ marginTop: "9px", fontSize: "12px", color: "rgba(255,255,255,0.6)", background: "rgba(247,55,79,0.08)", border: "1px solid rgba(247,55,79,0.2)", borderRadius: "10px", padding: "8px 10px" }}>
               {errorMsg}
             </p>
           )}
 
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px", marginTop: "12px", paddingTop: "12px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+          <div
+            className="snx-toolbar-row"
+            style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px", marginTop: "10px", paddingTop: "10px", borderTop: "1px solid rgba(255,255,255,0.07)" }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "6px", minWidth: 0 }}>
               <button type="button" className="snx-attach-btn" onClick={open} title="Attach a file" aria-label="Attach a file">
-                <Paperclip size={15} />
-              </button>
-              <button
-                type="button"
-                className={`snx-toolbar-btn${showInstructions ? " active" : ""}`}
-                onClick={(e) => { e.stopPropagation(); setShowInstructions((v) => !v); }}
-                title="Add instructions for the summary"
-              >
-                <Plus size={13} />
-                Instructions
+                <Paperclip size={14} />
               </button>
             </div>
 
@@ -333,16 +425,16 @@ export default function HeroSection() {
               title="Generate summary"
               style={{
                 background: canSend ? "#F7374F" : "rgba(247,55,79,0.2)",
-                boxShadow: canSend ? "0 0 18px rgba(247,55,79,0.35)" : "none",
+                boxShadow: canSend ? "0 0 16px rgba(247,55,79,0.38)" : "none",
                 cursor: canSend ? "pointer" : "not-allowed",
               }}
             >
-              {loading ? <Loader2 size={15} color="#fff" className="animate-spin" /> : <Send size={15} color="#fff" />}
+              {loading ? <Loader2 size={14} color="#fff" className="animate-spin" /> : <Send size={14} color="#fff" />}
             </button>
           </div>
 
-          <p style={{ marginTop: "10px", fontSize: "10.5px", color: "rgba(255,255,255,0.2)", textAlign: "center" }}>
-            PDF · DOCX · PPT · TXT · Image · or paste a link — up to 50MB
+            <p style={{ marginTop: "clamp(8px, 1.5vw, 12px)", fontSize: "10px", color: "rgba(255,255,255,0.42)", textAlign: "center" }}>
+            Any doc, image, or link · up to 50MB — SnipixAI also generates a quiz or test from it in one click
           </p>
         </div>
       </div>
@@ -354,7 +446,6 @@ export default function HeroSection() {
             documentId={documentId}
             onClose={handleCloseChat}
             variant="overlay"
-            initialMessage={instructions}
             enterAnimation
           />
         )}

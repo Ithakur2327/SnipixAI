@@ -113,13 +113,11 @@ export default function DocumentChat({
   documentId,
   onClose,
   variant = "overlay",
-  initialMessage,
   enterAnimation = false,
 }: {
   documentId: string;
   onClose: () => void;
   variant?: "overlay" | "page";
-  initialMessage?: string;
   enterAnimation?: boolean;
 }) {
   const router = useRouter();
@@ -362,9 +360,9 @@ export default function DocumentChat({
   useEffect(() => {
     if (doc?.status === "ready" && historyLoaded && messages.length === 0 && !autoSummaryTriggeredRef.current) {
       autoSummaryTriggeredRef.current = true;
-      void handleSend(initialMessage?.trim() || AUTO_SUMMARY_PROMPT);
+      void handleSend(AUTO_SUMMARY_PROMPT);
     }
-  }, [doc?.status, historyLoaded, messages.length, handleSend, initialMessage]);
+  }, [doc?.status, historyLoaded, messages.length, handleSend]);
 
   function scrollToBottom(behavior: ScrollBehavior = "smooth") {
     bottomRef.current?.scrollIntoView({ behavior });
@@ -490,7 +488,23 @@ export default function DocumentChat({
         </button>
       </div>
 
-      <div ref={scrollRef} onScroll={handleScroll} className="relative flex-1 overflow-y-auto">
+      <style>{`
+        .snx-chat-scroll {
+          overflow-y: scroll;
+          scrollbar-gutter: stable;
+          scrollbar-color: rgba(255,255,255,0.28) #050505;
+          scrollbar-width: thin;
+        }
+        .snx-chat-scroll::-webkit-scrollbar { width: 10px; }
+        .snx-chat-scroll::-webkit-scrollbar-track { background: #050505; }
+        .snx-chat-scroll::-webkit-scrollbar-thumb {
+          background: rgba(255,255,255,0.28);
+          border: 3px solid #050505;
+          border-radius: 999px;
+        }
+        .snx-chat-scroll::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.48); }
+      `}</style>
+      <div ref={scrollRef} onScroll={handleScroll} className="snx-chat-scroll relative flex-1">
         <div className="mx-auto flex w-full max-w-[900px] flex-col gap-5 px-3 pb-[calc(1.5rem+env(safe-area-inset-bottom))] pt-14 sm:gap-6 sm:px-8">
           {docLoadError && <DocErrorState message={docLoadError} onClose={onClose} />}
           {!docLoadError && doc?.status === "error" && (
