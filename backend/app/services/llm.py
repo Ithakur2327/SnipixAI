@@ -24,8 +24,8 @@ _client: AsyncGroq | None = None
 # collides with another one defeats the goal of a snappy product - it's
 # often better to fail fast with a clear "try again in a moment" than to
 # make one request silently eat 30-70+ seconds trying to force success.
-MAX_RATE_LIMIT_RETRIES = 2
-MAX_RATE_LIMIT_WAIT_SECONDS = 12.0
+MAX_RATE_LIMIT_RETRIES = 0
+MAX_RATE_LIMIT_WAIT_SECONDS = 45.0
 DEFAULT_RATE_LIMIT_WAIT_SECONDS = 3.0
 
 
@@ -57,7 +57,16 @@ def _retry_after_seconds(exc: RateLimitError) -> float:
     return DEFAULT_RATE_LIMIT_WAIT_SECONDS
 
 
-async def _create_with_rate_limit_retry(client: AsyncGroq, **kwargs):
+def _is_daily_limit(exc: RateLimitError) -> bool:
+    """Daily token quotas cannot recover by retrying this request."""
+    error = getattr(exc, "body", None) or getattr(exc, "response", None)
+    text = str(error or exc).lower()
+    return "tokens per day" in text or '"code":"rate_limit_exceeded"' in text and "day" in text
+
+
+async def _create_with_rate_limit_retry(
+    client: AsyncGroq, max_retries: int = MAX_RATE_LIMIT_RETRIES, **kwargs
+):
     """Wrapper around client.chat.completions.create that transparently
     retries Groq 429s using the wait time Groq itself reports.
 
@@ -71,15 +80,18 @@ async def _create_with_rate_limit_retry(client: AsyncGroq, **kwargs):
         try:
             return await client.chat.completions.create(**kwargs)
         except RateLimitError as exc:
+            if _is_daily_limit(exc):
+                logger.error("[llm] Groq daily token limit reached; failing fast")
+                raise
             attempt += 1
-            if attempt > MAX_RATE_LIMIT_RETRIES:
+            if attempt > max_retries:
                 raise
             wait_s = min(_retry_after_seconds(exc), MAX_RATE_LIMIT_WAIT_SECONDS)
             logger.warning(
                 "[llm] Groq rate limit hit, retrying in %.1fs (attempt %d/%d)",
                 wait_s,
                 attempt,
-                MAX_RATE_LIMIT_RETRIES,
+                max_retries,
             )
             await asyncio.sleep(wait_s)
 
@@ -121,6 +133,7 @@ async def generate_completion(
     max_tokens: int | None = None,
     temperature: float = 0.4,
     json_mode: bool = False,
+    rate_limit_retries: int | None = None,
 ) -> str:
     settings = get_settings()
     client = get_client()
@@ -136,7 +149,11 @@ async def generate_completion(
     if json_mode:
         kwargs["response_format"] = {"type": "json_object"}
     try:
-        response = await _create_with_rate_limit_retry(client, **kwargs)
+        response = await _create_with_rate_limit_retry(
+            client,
+            max_retries=MAX_RATE_LIMIT_RETRIES if rate_limit_retries is None else rate_limit_retries,
+            **kwargs,
+        )
     except RateLimitError:
         # Already retried internally (see _create_with_rate_limit_retry) -
         # falling back to "retry without json_mode" here would just hit the
@@ -149,7 +166,11 @@ async def generate_completion(
         if json_mode:
             logger.warning("[llm] json_object mode failed, retrying without it: %s", exc)
             kwargs.pop("response_format", None)
-            response = await _create_with_rate_limit_retry(client, **kwargs)
+            response = await _create_with_rate_limit_retry(
+                client,
+                max_retries=MAX_RATE_LIMIT_RETRIES if rate_limit_retries is None else rate_limit_retries,
+                **kwargs,
+            )
         else:
             raise
     content = response.choices[0].message.content or ""

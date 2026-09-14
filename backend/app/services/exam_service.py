@@ -26,11 +26,12 @@ logger = logging.getLogger(__name__)
 # call reflects the real, current usage, so it's actually more likely to
 # succeed on the first try - which in practice finishes faster than a
 # "concurrent but mostly rejected" burst would.
-TOPICS_PER_BATCH = 3
+TOPICS_PER_BATCH = 5
 QUESTIONS_PER_TOPIC = 3
 MAX_CONCURRENT_BATCHES = 1
 MAX_PRIOR_QUESTIONS_PER_TOPIC = 6
-RETRIEVAL_TOP_K_PER_TOPIC = 6
+RETRIEVAL_TOP_K_PER_TOPIC = 2
+MAX_EXAM_CONTEXT_CHARS = 8000
 
 
 def _document_context(document: dict, use_document: bool) -> str:
@@ -81,7 +82,13 @@ async def _batch_context(
         logger.warning("[exam_service] Retrieval failed for topics %s: %s", topics, exc)
         matches = []
     if matches:
-        return "\n\n".join(m["text"] for m in matches if m.get("text"))
+        context = "\n\n".join(m["text"] for m in matches if m.get("text"))
+        if len(context) > MAX_EXAM_CONTEXT_CHARS:
+            context = context[:MAX_EXAM_CONTEXT_CHARS]
+            boundary = max(context.rfind("\n\n"), context.rfind(". "))
+            if boundary > MAX_EXAM_CONTEXT_CHARS // 2:
+                context = context[: boundary + (2 if context[boundary:boundary + 2] == ". " else 0)]
+        return context
     return fallback
 
 
@@ -122,7 +129,7 @@ Document content:
             {"role": "system", "content": "You generate accurate exam questions and return strict JSON only."},
             {"role": "user", "content": prompt},
         ],
-        max_tokens=max(800, len(topics) * per_topic_count * 350),
+        max_tokens=min(2800, max(1200, len(topics) * per_topic_count * 180)),
         temperature=0.6,
         json_mode=True,
     )
@@ -239,6 +246,9 @@ async def generate_exam(
     newly_asked: dict[str, list[str]] = {}
     for questions in batch_results:
         for raw_question in questions:
+            if not isinstance(raw_question, dict):
+                logger.warning("[exam_service] Ignoring malformed question item: %r", raw_question)
+                continue
             topic_label = str(raw_question.get("topic") or exam_topic_label).strip() or exam_topic_label
             question = _normalize_question(raw_question, exam_type)
             if not question:

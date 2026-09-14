@@ -14,6 +14,7 @@ SYSTEM_PROMPT = """You are SnipixAI, a highly capable document assistant with th
 Core behavior:
 - Respond in the same language, script, and tone the user writes in.
 - When asked to summarize or explain the document and no specific format is requested, walk through every topic and section present in the document content below, in the order they appear - do not skip, merge, or compress sections just to make the answer shorter. For each point, explain the reasoning, context, or "why" behind it, not just the bare fact in isolation. Never give a short, generic, or artificially truncated answer by default.
+- For a long summary, stop only after completing the current topic or section; never end halfway through a topic. A later continuation must begin with the next unfinished topic or section.
 - Use clear structure (headings, short paragraphs, and lists) only where it genuinely helps readability. Do not force a rigid template on every answer.
 - When the user requests a specific format, length, tone, focus, or style, follow their instructions precisely instead of your default style.
 - Ground your answers in the document whenever the question relates to it, referencing specific parts naturally.
@@ -43,6 +44,7 @@ def _build_document_block(title: str, condensed_context: str, excerpts: list[dic
 # shortened to their gist.
 MAX_HISTORY_MESSAGE_CHARS = 1200
 KEEP_FULL_LAST_TURNS = 2
+MAX_CHAT_DOCUMENT_CHARS = 9000
 
 
 def _truncate_history_text(text: str) -> str:
@@ -109,8 +111,9 @@ async def stream_chat_response(
             "mid-sentence or mid-word, finish that same sentence/word first - do not start a "
             "new sentence. Do not repeat any text already written above, do not add a "
             "transition phrase like 'continuing from before', a new heading, or a fresh "
-            "introduction. Keep going until every remaining topic and section is fully "
-            "covered."
+            "introduction. For a document summary, always finish the current topic or section "
+            "before stopping; never end halfway through a topic. Keep going until every "
+            "remaining topic and section is fully covered."
         )
 
     try:
@@ -127,6 +130,10 @@ async def stream_chat_response(
     condensed_context = context_builder.get_fallback_context(
         doc.get("condensedContext") or doc.get("rawText") or ""
     )
+    if len(condensed_context) > MAX_CHAT_DOCUMENT_CHARS:
+        condensed_context = context_builder._trim_at_boundary(
+            condensed_context, MAX_CHAT_DOCUMENT_CHARS
+        )
     document_block = _build_document_block(doc["title"], condensed_context, raw_matches)
 
     messages = [{"role": "system", "content": f"{SYSTEM_PROMPT}\n\n{document_block}"}]
@@ -138,7 +145,9 @@ async def stream_chat_response(
     stream_status: dict = {"complete": False}
     try:
         async for delta in llm.stream_completion(
-            messages, max_tokens=settings.max_output_tokens, stream_status=stream_status
+            messages,
+            max_tokens=min(settings.max_output_tokens, 2800),
+            stream_status=stream_status,
         ):
             accumulated += delta
             yield sse_event("token", {"content": delta})
@@ -148,12 +157,11 @@ async def stream_chat_response(
         if accumulated.strip():
             yield sse_event("error", {"message": "The response was interrupted, but here is what was generated."})
         elif isinstance(exc, RateLimitError):
-            # llm.stream_completion already retries transient 429s a couple
-            # of times with Groq's own suggested backoff; if it still
-            # couldn't get through, demand is genuinely high right now.
+            # The LLM layer fails fast for exhausted daily quotas and does not
+            # make the user wait through retries that cannot succeed today.
             yield sse_event(
                 "error",
-                {"message": "The AI is getting a lot of requests right now. Please wait a few seconds and try again."},
+                {"message": "Today's AI usage limit has been reached. Please try again after the Groq quota resets."},
             )
         else:
             yield sse_event("error", {"message": "The AI is temporarily unavailable. Please try again."})

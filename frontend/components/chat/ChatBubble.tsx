@@ -32,7 +32,7 @@ export function AssistantBubble({ content, streaming = false }: { content: strin
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2, ease: "easeOut" }}
-      className="flex gap-3.5"
+      className="flex w-full gap-3.5"
     >
       <div
         className="mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/15 text-white transition-shadow duration-500"

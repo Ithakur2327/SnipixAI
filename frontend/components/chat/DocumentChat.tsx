@@ -440,6 +440,13 @@ export default function DocumentChat({
           .snx-exam-btn {
             position: relative;
             isolation: isolate;
+            box-shadow: 0 5px 14px rgba(247, 55, 79, 0.16), inset 0 1px 0 rgba(255,255,255,0.12);
+            transform: translateY(0);
+            transition: transform 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
+          }
+          .snx-exam-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 8px 20px rgba(247, 55, 79, 0.28), inset 0 1px 0 rgba(255,255,255,0.16);
           }
           .snx-exam-btn::before {
             content: '';
@@ -477,6 +484,7 @@ export default function DocumentChat({
           className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-black/70 text-white/70 backdrop-blur transition-colors hover:bg-white/10 hover:text-white"
           aria-label="Home"
           title="Home"
+          style={{ boxShadow: "0 5px 14px rgba(255,255,255,0.08), inset 0 1px 0 rgba(255,255,255,0.12)" }}
         >
           <Home size={16} />
         </button>
@@ -545,7 +553,7 @@ export default function DocumentChat({
 
       {showThread && (
         <div className="border-t border-white/10 bg-black px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 sm:px-8">
-          <div className="mx-auto max-w-[900px]">
+          <div className="mx-auto w-full max-w-[900px] px-0">
             <AnimatePresence>
               {examComposerOpen && isReady && doc && (
                 <div className="mb-3">

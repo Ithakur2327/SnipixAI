@@ -21,7 +21,8 @@ MAX_EXTRACTED_TOPICS = 20
 # summarizing a large document used to feel slow - a 30-section document at
 # ~2s/call took a minute or more. Running them concurrently (bounded so we
 # don't blow through Groq rate limits) turns that into a few seconds.
-MAX_CONCURRENT_CONDENSATIONS = 6
+MAX_CONCURRENT_CONDENSATIONS = 2
+MAX_SECTION_INPUT_CHARS = 6000
 
 
 def estimate_tokens(text: str) -> int:
@@ -37,6 +38,17 @@ def _split_into_sections(text: str, section_chars: int) -> List[str]:
     return splitter.split_text(text)
 
 
+def _trim_at_boundary(text: str, max_chars: int) -> str:
+    if len(text) <= max_chars:
+        return text
+    candidate = text[:max_chars]
+    boundary = max(candidate.rfind("\n\n"), candidate.rfind(". "))
+    if boundary > max_chars // 2:
+        return candidate[: boundary + (1 if candidate[boundary] == "." else 0)].rstrip()
+    word_boundary = candidate.rfind(" ")
+    return candidate[:word_boundary].rstrip() if word_boundary > 0 else candidate.rstrip()
+
+
 async def _condense_section(section: str, index: int, total: int, target_words: int) -> str:
     prompt = (
         f"You are condensing part {index + 1} of {total} of a longer document into a dense, "
@@ -47,13 +59,18 @@ async def _condense_section(section: str, index: int, total: int, target_words: 
         "it is. Do not add opinions or information that is not present in the text, and do not "
         "drop a topic just to shorten the text - shorten by tightening the wording instead. "
         "Write plain prose, no headers.\n\n"
-        f"Section text:\n{section}"
+        f"Section text:\n{section[:MAX_SECTION_INPUT_CHARS]}"
     )
     messages = [
         {"role": "system", "content": "You produce accurate, information-dense condensations of text for later use as reference context."},
         {"role": "user", "content": prompt},
     ]
-    result = await llm.generate_completion(messages, max_tokens=900, temperature=0.2)
+    result = await llm.generate_completion(
+        messages,
+        max_tokens=500,
+        temperature=0.2,
+        rate_limit_retries=0,
+    )
     return result.strip()
 
 
@@ -96,8 +113,15 @@ async def build_document_context(raw_text: str) -> str:
     # awaiting them one-by-one. asyncio.gather preserves input order, so the
     # combined summary still reads front-to-back correctly.
     semaphore = asyncio.Semaphore(MAX_CONCURRENT_CONDENSATIONS)
+    target_words = max(
+        180,
+        min(
+            settings.condensed_section_target_words,
+            settings.direct_context_char_budget // max(len(sections), 1) // 5,
+        ),
+    )
     tasks = [
-        _condense_section_bounded(semaphore, section, i, len(sections), settings.condensed_section_target_words)
+        _condense_section_bounded(semaphore, section, i, len(sections), target_words)
         for i, section in enumerate(sections)
     ]
     condensed_parts = await asyncio.gather(*tasks)
@@ -110,7 +134,10 @@ async def build_document_context(raw_text: str) -> str:
         # just chopping off the tail, so every topic keeps at least some
         # representation instead of later ones disappearing entirely.
         overflow_ratio = settings.direct_context_char_budget / len(combined)
-        trimmed = [part[: max(40, int(len(part) * overflow_ratio))] for part in parts]
+        trimmed = [
+            _trim_at_boundary(part, max(40, int(len(part) * overflow_ratio)))
+            for part in parts
+        ]
         combined = "\n\n".join(trimmed)
 
     return combined
@@ -159,7 +186,7 @@ async def extract_topics(context: str) -> List[str]:
         {"role": "user", "content": prompt},
     ]
     try:
-        response = await llm.generate_completion(messages, max_tokens=700, temperature=0.2, json_mode=True)
+        response = await llm.generate_completion(messages, max_tokens=450, temperature=0.2, json_mode=True)
         parsed = json.loads(llm.strip_json_fence(response))
         raw_topics = parsed.get("topics")
         if not isinstance(raw_topics, list):

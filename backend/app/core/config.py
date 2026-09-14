@@ -67,14 +67,17 @@ class Settings(BaseSettings):
     max_upload_size_mb: int = int(os.getenv("MAX_UPLOAD_SIZE_MB", "200"))
     chunk_size: int = int(os.getenv("CHUNK_SIZE", "1000"))
     chunk_overlap: int = int(os.getenv("CHUNK_OVERLAP", "150"))
-    retrieval_top_k: int = int(os.getenv("RETRIEVAL_TOP_K", "8"))
+    retrieval_top_k: int = int(os.getenv("RETRIEVAL_TOP_K", "4"))
 
     direct_context_char_budget: int = int(os.getenv("DIRECT_CONTEXT_CHAR_BUDGET", "20000"))
     condensed_section_char_size: int = int(os.getenv("CONDENSED_SECTION_CHAR_SIZE", "12000"))
     condensed_section_target_words: int = int(os.getenv("CONDENSED_SECTION_TARGET_WORDS", "450"))
     chat_history_turns: int = int(os.getenv("CHAT_HISTORY_TURNS", "8"))
-    max_output_tokens: int = int(os.getenv("MAX_OUTPUT_TOKENS", "6000"))
-    exam_max_output_tokens: int = int(os.getenv("EXAM_MAX_OUTPUT_TOKENS", "6000"))
+    # Keep one request below Groq's 8k TPM free-tier ceiling. Long answers
+    # continue through the existing continuation flow instead of requesting
+    # 6k output tokens on top of a large document prompt.
+    max_output_tokens: int = int(os.getenv("MAX_OUTPUT_TOKENS", "2800"))
+    exam_max_output_tokens: int = int(os.getenv("EXAM_MAX_OUTPUT_TOKENS", "2800"))
 
     # A value of 0 disables the application-level quota - both already
     # unlimited by default, kept that way here.

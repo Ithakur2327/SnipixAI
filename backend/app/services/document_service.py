@@ -254,12 +254,9 @@ async def _finalize_document(object_id, doc: dict, raw_text: Optional[str], page
 
     if chunks:
         asyncio.create_task(_index_chunks_background(chunks, document_id))
-    # Deliberately delayed (see _delayed_extract_topics) rather than fired
-    # immediately - this exists to speed up a *later* action (exam
-    # generation), so it shouldn't compete with the auto-summary chat
-    # request the frontend fires the instant "ready" flips, for the same
-    # scarce per-minute Groq budget the condensation calls above just used.
-    asyncio.create_task(_delayed_extract_topics(document_id, condensed_context or raw_text))
+    # Topics are extracted lazily by exam_service when an exam is requested.
+    # Starting another Groq request after ready competes with the user's first
+    # chat request on the free-tier token window.
 
 
 async def _mark_document_failed(object_id, document_id: str, exc: Exception) -> None:
