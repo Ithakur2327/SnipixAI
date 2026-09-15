@@ -77,7 +77,7 @@ class Settings(BaseSettings):
     # continue through the existing continuation flow instead of requesting
     # 6k output tokens on top of a large document prompt.
     max_output_tokens: int = int(os.getenv("MAX_OUTPUT_TOKENS", "2800"))
-    exam_max_output_tokens: int = int(os.getenv("EXAM_MAX_OUTPUT_TOKENS", "2800"))
+    exam_max_output_tokens: int = int(os.getenv("EXAM_MAX_OUTPUT_TOKENS", "1600"))
 
     # A value of 0 disables the application-level quota - both already
     # unlimited by default, kept that way here.

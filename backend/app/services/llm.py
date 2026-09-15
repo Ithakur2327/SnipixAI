@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import re
 from typing import AsyncGenerator, List
 
 from groq import AsyncGroq, RateLimitError
@@ -64,6 +65,18 @@ def _is_daily_limit(exc: RateLimitError) -> bool:
     return "tokens per day" in text or '"code":"rate_limit_exceeded"' in text and "day" in text
 
 
+def rate_limit_retry_seconds(exc: RateLimitError) -> float:
+    """Return the provider's suggested retry delay when it is in the error text."""
+    match = re.search(r"try again in\s+([\d.]+)s", str(exc), re.IGNORECASE)
+    if match:
+        return max(1.0, round(float(match.group(1))))
+    return round(_retry_after_seconds(exc))
+
+
+def is_daily_rate_limit(exc: RateLimitError) -> bool:
+    return _is_daily_limit(exc)
+
+
 async def _create_with_rate_limit_retry(
     client: AsyncGroq, max_retries: int = MAX_RATE_LIMIT_RETRIES, **kwargs
 ):
@@ -101,11 +114,13 @@ async def stream_completion(
     max_tokens: int | None = None,
     temperature: float = 0.6,
     stream_status: dict | None = None,
+    rate_limit_retries: int = MAX_RATE_LIMIT_RETRIES,
 ) -> AsyncGenerator[str, None]:
     settings = get_settings()
     client = get_client()
     stream = await _create_with_rate_limit_retry(
         client,
+        max_retries=rate_limit_retries,
         model=settings.groq_model,
         messages=messages,
         temperature=temperature,

@@ -425,9 +425,10 @@ export default function DocumentChat({
     <motion.div
       className={containerClass}
       style={variant === "overlay" ? { zIndex: 1000000 } : undefined}
-      initial={enterAnimation ? { opacity: 0, scale: 0.92, y: 24 } : false}
-      animate={{ opacity: 1, scale: 1, y: 0 }}
-      transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+      initial={enterAnimation ? { opacity: 0 } : false}
+      animate={{ opacity: 1 }}
+      exit={enterAnimation ? { opacity: 0 } : undefined}
+      transition={{ duration: 0.5, ease: "easeOut" }}
     >
       <div className="absolute right-3 top-[max(0.75rem,env(safe-area-inset-top))] z-30 flex items-center gap-1.5 sm:right-6 sm:gap-2">
         <style>{`

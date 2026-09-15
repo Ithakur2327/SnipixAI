@@ -44,7 +44,8 @@ def _build_document_block(title: str, condensed_context: str, excerpts: list[dic
 # shortened to their gist.
 MAX_HISTORY_MESSAGE_CHARS = 1200
 KEEP_FULL_LAST_TURNS = 2
-MAX_CHAT_DOCUMENT_CHARS = 9000
+MAX_CHAT_DOCUMENT_CHARS = 6000
+MAX_CHAT_COMPLETION_TOKENS = 1200
 
 
 def _truncate_history_text(text: str) -> str:
@@ -146,8 +147,9 @@ async def stream_chat_response(
     try:
         async for delta in llm.stream_completion(
             messages,
-            max_tokens=min(settings.max_output_tokens, 2800),
+            max_tokens=min(settings.max_output_tokens, MAX_CHAT_COMPLETION_TOKENS),
             stream_status=stream_status,
+            rate_limit_retries=1,
         ):
             accumulated += delta
             yield sse_event("token", {"content": delta})
@@ -159,10 +161,12 @@ async def stream_chat_response(
         elif isinstance(exc, RateLimitError):
             # The LLM layer fails fast for exhausted daily quotas and does not
             # make the user wait through retries that cannot succeed today.
-            yield sse_event(
-                "error",
-                {"message": "Today's AI usage limit has been reached. Please try again after the Groq quota resets."},
-            )
+            if llm.is_daily_rate_limit(exc):
+                message = "Today's AI usage limit has been reached. Please try again after the Groq quota resets."
+            else:
+                retry_seconds = llm.rate_limit_retry_seconds(exc)
+                message = f"The AI is temporarily busy. Please try again in about {retry_seconds} seconds."
+            yield sse_event("error", {"message": message})
         else:
             yield sse_event("error", {"message": "The AI is temporarily unavailable. Please try again."})
     finally:

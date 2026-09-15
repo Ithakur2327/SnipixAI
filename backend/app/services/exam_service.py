@@ -3,7 +3,10 @@ import json
 import logging
 import uuid
 
-from app.core.exceptions import BadRequestError
+from groq import RateLimitError
+
+from app.core.config import get_settings
+from app.core.exceptions import BadRequestError, TooManyRequestsError
 from app.services import context_builder, document_service, embedder, llm, message_service, vector_store
 
 logger = logging.getLogger(__name__)
@@ -31,7 +34,8 @@ QUESTIONS_PER_TOPIC = 3
 MAX_CONCURRENT_BATCHES = 1
 MAX_PRIOR_QUESTIONS_PER_TOPIC = 6
 RETRIEVAL_TOP_K_PER_TOPIC = 2
-MAX_EXAM_CONTEXT_CHARS = 8000
+MAX_EXAM_CONTEXT_CHARS = 4000
+MAX_EXAM_COMPLETION_TOKENS = 1400
 
 
 def _document_context(document: dict, use_document: bool) -> str:
@@ -129,9 +133,14 @@ Document content:
             {"role": "system", "content": "You generate accurate exam questions and return strict JSON only."},
             {"role": "user", "content": prompt},
         ],
-        max_tokens=min(2800, max(1200, len(topics) * per_topic_count * 180)),
+        max_tokens=min(
+            get_settings().exam_max_output_tokens,
+            MAX_EXAM_COMPLETION_TOKENS,
+            max(1200, len(topics) * per_topic_count * 180),
+        ),
         temperature=0.6,
         json_mode=True,
+        rate_limit_retries=2,
     )
     parsed = json.loads(llm.strip_json_fence(response))
     questions = parsed.get("questions")
@@ -155,6 +164,12 @@ async def _generate_batch_bounded(
                 return await _generate_batch_questions(
                     topics, context, exam_type, difficulty, per_topic_count, exam_history
                 )
+            except RateLimitError as exc:
+                logger.error("[exam_service] Groq rate limit exhausted for batch %s: %s", topics, exc)
+                retry_seconds = llm.rate_limit_retry_seconds(exc)
+                raise TooManyRequestsError(
+                    f"The AI is temporarily busy because the Groq token limit was reached. Please try again in about {retry_seconds} seconds."
+                ) from exc
             except Exception as exc:
                 # Broad on purpose: json/shape problems (json.JSONDecodeError,
                 # TypeError, ValueError) AND a RateLimitError that survived
