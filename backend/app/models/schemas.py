@@ -75,6 +75,7 @@ class DocumentListData(BaseModel):
 class SendMessageRequest(BaseModel):
     message: str = Field(max_length=8000)
     continuation: bool = False
+    skipRetrieval: bool = False
 
     @model_validator(mode="after")
     def validate_message(self):

@@ -296,6 +296,7 @@ export default function DocumentChat({
         await streamChatMessage(documentId, trimmed, {
           signal: controller.signal,
           continuation,
+          skipRetrieval: !continuation && trimmed === AUTO_SUMMARY_PROMPT,
           onEvent: (event) => {
             if (event.type === "token") {
               fullTextRef.current += event.content;

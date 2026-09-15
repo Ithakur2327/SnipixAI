@@ -138,7 +138,12 @@ export type StreamEvent =
 export async function streamChatMessage(
   documentId: string,
   message: string,
-  handlers: { onEvent: (event: StreamEvent) => void; signal?: AbortSignal; continuation?: boolean }
+  handlers: {
+    onEvent: (event: StreamEvent) => void;
+    signal?: AbortSignal;
+    continuation?: boolean;
+    skipRetrieval?: boolean;
+  }
 ): Promise<void> {
   const token = readToken();
   const response = await fetch(`${API_BASE_URL}/chat/${documentId}`, {
@@ -147,7 +152,11 @@ export async function streamChatMessage(
       "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
-    body: JSON.stringify({ message, continuation: handlers.continuation ?? false }),
+    body: JSON.stringify({
+      message,
+      continuation: handlers.continuation ?? false,
+      skipRetrieval: handlers.skipRetrieval ?? false,
+    }),
     signal: handlers.signal,
   });
 

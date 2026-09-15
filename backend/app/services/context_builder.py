@@ -3,6 +3,8 @@ import json
 import logging
 from typing import List
 
+from groq import RateLimitError
+
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from app.core.config import get_settings
@@ -187,6 +189,12 @@ async def extract_topics(context: str) -> List[str]:
         raw_topics = parsed.get("topics")
         if not isinstance(raw_topics, list):
             return []
+    except RateLimitError as exc:
+        if llm.is_daily_rate_limit(exc):
+            logger.error("[context_builder] Groq daily token limit reached during topic extraction")
+            raise
+        logger.warning("[context_builder] Topic extraction rate limited: %s", exc)
+        return []
     except Exception as exc:
         logger.warning("[context_builder] Topic extraction failed: %s", exc)
         return []

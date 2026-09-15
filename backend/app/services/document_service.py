@@ -232,7 +232,6 @@ async def _finalize_document(object_id, doc: dict, raw_text: Optional[str], page
         raise ValueError("No readable text could be extracted from this source.")
 
     word_count = len(raw_text.split())
-    chunks = chunk_document(raw_text, document_id, doc["userId"])
     condensed_context = await context_builder.build_document_context(raw_text)
 
     await db.documents.update_one(
@@ -252,8 +251,7 @@ async def _finalize_document(object_id, doc: dict, raw_text: Optional[str], page
     )
     logger.info("[document_service] Document %s ready for chat", document_id)
 
-    if chunks:
-        asyncio.create_task(_index_chunks_background(chunks, document_id))
+    asyncio.create_task(_index_chunks_background(raw_text, document_id, doc["userId"]))
     # Topics are extracted lazily by exam_service when an exam is requested.
     # Starting another Groq request after ready competes with the user's first
     # chat request on the free-tier token window.
@@ -316,12 +314,15 @@ async def update_exam_history(document_id: str, exam_history: dict) -> None:
     )
 
 
-async def _index_chunks_background(chunks: list[dict], document_id: str) -> None:
+async def _index_chunks_background(raw_text: str, document_id: str, user_id: str) -> None:
     """Embeds and upserts a document's chunks into Pinecone after the
     document is already marked ready. Sharpens follow-up-question answers
     with literal excerpts; not required for the first response, which
     reads condensedContext instead."""
     try:
+        chunks = chunk_document(raw_text, document_id, user_id)
+        if not chunks:
+            return
         texts = [c["text"] for c in chunks]
         vectors = await embedder.embed_texts_async(texts)
         for chunk, vector in zip(chunks, vectors):

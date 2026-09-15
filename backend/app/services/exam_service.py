@@ -166,10 +166,12 @@ async def _generate_batch_bounded(
                 )
             except RateLimitError as exc:
                 logger.error("[exam_service] Groq rate limit exhausted for batch %s: %s", topics, exc)
-                retry_seconds = llm.rate_limit_retry_seconds(exc)
-                raise TooManyRequestsError(
-                    f"The AI is temporarily busy because the Groq token limit was reached. Please try again in about {retry_seconds} seconds."
-                ) from exc
+                if llm.is_daily_rate_limit(exc):
+                    message = "Today's AI token quota has been reached. Please try again after the Groq quota resets."
+                else:
+                    retry_seconds = llm.rate_limit_retry_seconds(exc)
+                    message = f"The AI is temporarily busy because the Groq token limit was reached. Please try again in about {retry_seconds} seconds."
+                raise TooManyRequestsError(message) from exc
             except Exception as exc:
                 # Broad on purpose: json/shape problems (json.JSONDecodeError,
                 # TypeError, ValueError) AND a RateLimitError that survived
