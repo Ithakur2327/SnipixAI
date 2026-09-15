@@ -74,6 +74,7 @@ async def stream_chat_response(
     document_id: str,
     user_message: str,
     continuation: bool = False,
+    skip_retrieval: bool = False,
 ) -> AsyncGenerator[str, None]:
     settings = get_settings()
 
@@ -117,14 +118,17 @@ async def stream_chat_response(
             "remaining topic and section is fully covered."
         )
 
-    try:
-        query_vector = await embedder.embed_query_async(user_message)
-        raw_matches = await vector_store.similarity_search_async(
-            query_vector, document_id, user_id, top_k=settings.retrieval_top_k
-        )
-    except Exception as exc:
-        logger.warning("[chat_service] retrieval failed: %s", exc)
+    if skip_retrieval:
         raw_matches = []
+    else:
+        try:
+            query_vector = await embedder.embed_query_async(user_message)
+            raw_matches = await vector_store.similarity_search_async(
+                query_vector, document_id, user_id, top_k=settings.retrieval_top_k
+            )
+        except Exception as exc:
+            logger.warning("[chat_service] retrieval failed: %s", exc)
+            raw_matches = []
 
     sources = [{"chunkId": m["chunk_id"], "text": m["text"], "score": m["score"]} for m in raw_matches]
 
