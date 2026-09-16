@@ -181,8 +181,34 @@ export default function Navbar() {
         .snx-cta:hover { opacity: .9; transform: translateY(-1px); box-shadow: 0 8px 24px rgba(247,55,79,0.4); }
         .snx-cta:active { transform: scale(0.97); }
 
-        .snx-brand { background: none; border: none; cursor: pointer; padding: 0; outline: none; transition: opacity 0.18s ease; }
-        .snx-brand:hover { opacity: 0.75; }
+        .snx-brand { background: none; border: none; cursor: pointer; padding: 0; outline: none; transition: opacity 0.18s ease, transform 0.18s ease; }
+        .snx-brand:hover { opacity: 0.9; transform: translateY(-1px); }
+
+        /* ===== 3D glass wordmark ===== */
+        .snx-logo {
+          font-family: 'Hachen', var(--font-raleway), sans-serif;
+          font-size: 20px;
+          font-weight: 700;
+          letter-spacing: 1.5px;
+          line-height: 1;
+          -webkit-font-smoothing: antialiased;
+        }
+        .snx-logo-snip {
+          background: linear-gradient(180deg, #ffffff 0%, #d9d9dc 42%, #9a9a9f 55%, #ffffff 100%);
+          -webkit-background-clip: text;
+          background-clip: text;
+          color: transparent;
+          filter: drop-shadow(0 1px 1px rgba(0,0,0,0.55));
+        }
+        .snx-logo-ai {
+          color: #0a0a0a;
+          -webkit-text-stroke: 1px #F7374F;
+          text-shadow:
+            0 0 6px rgba(247,55,79,0.85),
+            0 0 18px rgba(247,55,79,0.55),
+            0 0 36px rgba(247,55,79,0.32),
+            0 2px 0 rgba(0,0,0,0.4);
+        }
 
         .snx-avatar {
           display: inline-flex; align-items: center; gap: 6px;
@@ -272,13 +298,14 @@ export default function Navbar() {
           .snx-nav { height: 56px !important; padding: 0 !important; }
           .snx-nav-inner { height: 56px !important; flex-direction: row !important; align-items: center !important; justify-content: space-between !important; padding: 0 16px !important; }
           .snx-pill-container { display: none !important; }
-          .snx-brand span { font-size: 18px !important; }
+          .snx-logo { font-size: 18px !important; }
           .snx-avatar-name { display: none !important; }
           .snx-dropdown { right: 0; left: auto; min-width: 200px; }
         }
 
         @media (max-width: 400px) {
           .snx-nav-inner { padding: 0 12px !important; }
+          .snx-logo { font-size: 16px !important; letter-spacing: 1px !important; }
         }
       `}</style>
 
@@ -308,12 +335,8 @@ export default function Navbar() {
         }}>
 
           <button className="snx-brand" onClick={() => handleNav(LINKS[0])} style={{ flexShrink: 0 }}>
-            <span style={{
-              fontFamily: "'Hachen', var(--font-raleway), sans-serif",
-              fontSize: "20px", fontWeight: 700, color: "#fff",
-              letterSpacing: "1.5px", lineHeight: 1,
-            }}>
-              Snipix<span style={{ color: "#F7374F" }}>AI</span>
+            <span className="snx-logo">
+              <span className="snx-logo-snip">Snipix</span><span className="snx-logo-ai">AI</span>
             </span>
           </button>
 

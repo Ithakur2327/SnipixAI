@@ -207,8 +207,7 @@ async def process_document(document_id: str) -> None:
 
 async def _finalize_document(object_id, doc: dict, raw_text: Optional[str], page_count: Optional[int]) -> None:
     """Shared final stage for every document source (upload, URL, pasted
-    text): chunk, condense (this alone gates "ready"), mark the document
-    ready, then kick off RAG indexing in the true background.
+    text): chunk, condense, finish RAG indexing, then mark the document ready.
 
     Condensation always fully resolves before "ready": for anything under
     the direct-context budget this is instant (the raw text is used
@@ -217,13 +216,9 @@ async def _finalize_document(object_id, doc: dict, raw_text: Optional[str], page
     document is covered from the very first response onward - there's no
     "ready but not really summarized yet" state.
 
-    RAG indexing (embedding each chunk + upserting to Pinecone) only
-    sharpens *follow-up* answers with literal excerpts - the first
-    response reads condensedContext instead - and MongoDB never stores the
-    chunks itself (only Pinecone does), so nothing here needs to wait on
-    it. Backgrounding it removes what was previously the single biggest
-    chunk of "time to ready" for a typical document, since it's genuine
-    CPU work.
+    RAG indexing does not use Groq, but it must finish before the frontend
+    starts the first chat request. Otherwise that request can race the final
+    condensation calls and exceed Groq's rolling TPM window.
     """
     db = get_database()
     document_id = str(object_id)
@@ -233,6 +228,10 @@ async def _finalize_document(object_id, doc: dict, raw_text: Optional[str], page
 
     word_count = len(raw_text.split())
     condensed_context = await context_builder.build_document_context(raw_text)
+
+    # Do not expose "ready" until ingestion has stopped consuming provider
+    # tokens and retrieval is available for the first user message.
+    await _index_chunks_background(raw_text, document_id, doc["userId"])
 
     await db.documents.update_one(
         {"_id": object_id},
@@ -250,8 +249,6 @@ async def _finalize_document(object_id, doc: dict, raw_text: Optional[str], page
         },
     )
     logger.info("[document_service] Document %s ready for chat", document_id)
-
-    asyncio.create_task(_index_chunks_background(raw_text, document_id, doc["userId"]))
     # Topics are extracted lazily by exam_service when an exam is requested.
     # Starting another Groq request after ready competes with the user's first
     # chat request on the free-tier token window.

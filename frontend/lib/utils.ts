@@ -5,6 +5,18 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+export function navigateWithTransition(navigate: () => void): void {
+  if (typeof document === "undefined") {
+    navigate();
+    return;
+  }
+
+  const viewTransitionDocument = document as Document & {
+    startViewTransition?: (callback: () => void) => unknown;
+  };
+  viewTransitionDocument.startViewTransition?.(navigate) ?? navigate();
+}
+
 export function formatWords(n: number): string {
   return n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
 }

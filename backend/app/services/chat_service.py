@@ -153,7 +153,7 @@ async def stream_chat_response(
             messages,
             max_tokens=min(settings.max_output_tokens, MAX_CHAT_COMPLETION_TOKENS),
             stream_status=stream_status,
-            rate_limit_retries=1,
+            rate_limit_retries=0,
         ):
             accumulated += delta
             yield sse_event("token", {"content": delta})

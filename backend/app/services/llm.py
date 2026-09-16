@@ -55,6 +55,9 @@ def _retry_after_seconds(exc: RateLimitError) -> float:
                 return max(0.0, float(seconds))
             except ValueError:
                 pass
+    match = re.search(r"try again in\s+([\d.]+)s", str(exc), re.IGNORECASE)
+    if match:
+        return max(0.0, float(match.group(1)))
     return DEFAULT_RATE_LIMIT_WAIT_SECONDS
 
 

@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { documentAPI, getApiErrorMessage } from "@/lib/api";
+import { navigateWithTransition } from "@/lib/utils";
 import UploadDropzone from "@/components/upload/UploadDropzone";
 import UrlInput from "@/components/upload/UrlInput";
 import RawTextInput from "@/components/upload/RawTextInput";
@@ -53,7 +54,7 @@ export default function UploadPage() {
         const res = await documentAPI.createFromText(text);
         documentId = res.data.data.document.id;
       }
-      router.push(`/document/${documentId}`);
+      navigateWithTransition(() => router.push(`/document/${documentId}`));
     } catch (err) {
       setError(getApiErrorMessage(err, "Upload failed. Please try again."));
     } finally {

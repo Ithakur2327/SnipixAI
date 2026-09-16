@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronDown, ClipboardList, FileText, Home, Loader2, PenLine, Send, Square } from "lucide-react";
 import { chatAPI, documentAPI, examAPI, getApiErrorMessage, streamChatMessage } from "@/lib/api";
@@ -120,7 +120,6 @@ export default function DocumentChat({
   variant?: "overlay" | "page";
   enterAnimation?: boolean;
 }) {
-  const router = useRouter();
   const [doc, setDoc] = useState<Document | null>(null);
   const [docLoadError, setDocLoadError] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -353,12 +352,6 @@ export default function DocumentChat({
   );
 
   useEffect(() => {
-    if (!continuationRequested || isStreaming) return;
-    setContinuationRequested(false);
-    void handleSend("", true);
-  }, [continuationRequested, isStreaming, handleSend]);
-
-  useEffect(() => {
     if (doc?.status === "ready" && historyLoaded && messages.length === 0 && !autoSummaryTriggeredRef.current) {
       autoSummaryTriggeredRef.current = true;
       void handleSend(AUTO_SUMMARY_PROMPT);
@@ -476,18 +469,15 @@ export default function DocumentChat({
             <span className="text-[10px] font-semibold">Exam</span>
           </button>
         )}
-        <button
-          onClick={() => {
-            onClose();
-            window.location.assign("/");
-          }}
+        <Link
+          href="/"
           className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-black/70 text-white/70 backdrop-blur transition-colors hover:bg-white/10 hover:text-white"
           aria-label="Home"
           title="Home"
           style={{ boxShadow: "0 5px 14px rgba(255,255,255,0.08), inset 0 1px 0 rgba(255,255,255,0.12)" }}
         >
           <Home size={16} />
-        </button>
+        </Link>
       </div>
 
       <style>{`
@@ -495,7 +485,7 @@ export default function DocumentChat({
           overflow-y: scroll;
           scrollbar-gutter: stable;
           scrollbar-color: rgba(255,255,255,0.28) #050505;
-          scrollbar-width: thin;
+          scrollbar-width: auto;
         }
         .snx-chat-scroll::-webkit-scrollbar { width: 10px; }
         .snx-chat-scroll::-webkit-scrollbar-track { background: #050505; }
@@ -589,6 +579,18 @@ export default function DocumentChat({
 
             {examError && <p className="mb-2 text-[12px] text-white/50">{examError}</p>}
             {chatError && <p className="mb-2 text-[12px] text-white/50">{chatError}</p>}
+            {continuationRequested && !isStreaming && (
+              <button
+                type="button"
+                onClick={() => {
+                  setContinuationRequested(false);
+                  void handleSend("", true);
+                }}
+                className="mb-2 text-left text-[12px] text-white/65 underline decoration-white/25 underline-offset-4 transition-colors hover:text-white"
+              >
+                Continue response
+              </button>
+            )}
 
             <div className="flex items-end gap-2 rounded-2xl border border-white/15 bg-white/[0.03] px-3.5 py-2 transition-colors focus-within:border-white/30">
               <textarea

@@ -16,8 +16,33 @@
 }
 
 html {
-  scroll-behavior: auto;
+  scroll-behavior: smooth;
+  scrollbar-gutter: stable;
+  scrollbar-width: auto;
+  scrollbar-color: rgba(255,255,255,0.28) #050505;
 }
+
+html::-webkit-scrollbar { width: 10px; }
+html::-webkit-scrollbar-track { background: #050505; }
+html::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.28);
+  border: 3px solid #050505;
+  border-radius: 999px;
+}
+html::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.48); }
+
+@media (prefers-reduced-motion: no-preference) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation-duration: 220ms;
+    animation-timing-function: ease-out;
+  }
+  ::view-transition-old(root) { animation-name: snx-page-out; }
+  ::view-transition-new(root) { animation-name: snx-page-in; }
+}
+
+@keyframes snx-page-out { to { opacity: 0; } }
+@keyframes snx-page-in { from { opacity: 0; } }
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI", sans-serif;
