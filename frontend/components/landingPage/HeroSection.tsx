@@ -31,7 +31,6 @@ function formatFileSize(bytes: number): string {
 export default function HeroSection() {
   const [loading, setLoading] = useState(false);
   const [content, setContent] = useState("");
-  const [summaryInstruction, setSummaryInstruction] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [isOpeningChat, setIsOpeningChat] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -86,17 +85,13 @@ export default function HeroSection() {
     try {
       let newDocId: string;
       if (file) {
-        const { data } = await documentAPI.uploadFile(file, summaryInstruction);
+        const { data } = await documentAPI.uploadFile(file, content);
         newDocId = data.data.document.id;
       } else if (isUrl) {
-        const { data } = await documentAPI.createFromUrl(trimmedContent, undefined, summaryInstruction);
+        const { data } = await documentAPI.createFromUrl(trimmedContent);
         newDocId = data.data.document.id;
       } else {
-        const { data } = await documentAPI.createFromText(
-          trimmedContent,
-          `Summary – ${new Date().toLocaleDateString()}`,
-          summaryInstruction,
-        );
+        const { data } = await documentAPI.createFromText(trimmedContent, `Summary – ${new Date().toLocaleDateString()}`);
         newDocId = data.data.document.id;
       }
       setIsOpeningChat(true);
@@ -136,7 +131,6 @@ export default function HeroSection() {
     setDocumentId(null);
     setErrorMsg(null);
     setContent("");
-    setSummaryInstruction("");
     setFile(null);
   };
 
@@ -374,15 +368,16 @@ export default function HeroSection() {
 
           <div style={{ minHeight: "50px", display: "flex", flexDirection: "column", justifyContent: "center" }}>
             {file ? (
-              <motion.div
-                initial={{ opacity: 0, y: 4 }}
-                animate={{ opacity: 1, y: 0 }}
-                style={{
-                  display: "flex", alignItems: "center", gap: "10px",
-                  background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)",
-                  borderRadius: "12px", padding: "9px 11px",
-                }}
-              >
+              <>
+                <motion.div
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  style={{
+                    display: "flex", alignItems: "center", gap: "10px",
+                    background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)",
+                    borderRadius: "12px", padding: "9px 11px",
+                  }}
+                >
                 <div style={{ width: "30px", height: "30px", borderRadius: "8px", background: "rgba(247,55,79,0.12)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                   <FileText size={14} color="#F7374F" />
                 </div>
@@ -393,7 +388,18 @@ export default function HeroSection() {
                 <button onClick={removeFile} aria-label="Remove file" style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "24px", height: "24px", borderRadius: "7px", border: "none", background: "transparent", color: "rgba(255,255,255,0.4)", cursor: "pointer", flexShrink: 0 }}>
                   <X size={13} />
                 </button>
-              </motion.div>
+                </motion.div>
+                <textarea
+                  value={content}
+                  onChange={(e) => setContent(e.target.value)}
+                  placeholder="Type how you want the summary… e.g. explain every topic in detail"
+                  rows={1}
+                  maxLength={1000}
+                  className="snx-composer-textarea"
+                  style={{ marginTop: "10px" }}
+                  aria-label="Summary instruction"
+                />
+              </>
             ) : (
               <textarea
                 ref={textareaRef}
@@ -406,26 +412,6 @@ export default function HeroSection() {
               />
             )}
           </div>
-
-          <input
-            value={summaryInstruction}
-            onChange={(e) => setSummaryInstruction(e.target.value)}
-            placeholder="Optional: e.g. explain in detail, include every topic and example"
-            maxLength={1000}
-            aria-label="Summary preference"
-            style={{
-              width: "100%",
-              marginTop: "10px",
-              padding: "9px 10px",
-              borderRadius: "9px",
-              border: "1px solid rgba(255,255,255,0.08)",
-              background: "rgba(255,255,255,0.03)",
-              color: "#fff",
-              outline: "none",
-              boxSizing: "border-box",
-              fontSize: "12px",
-            }}
-          />
 
           {errorMsg && (
             <p style={{ marginTop: "9px", fontSize: "12px", color: "rgba(255,255,255,0.6)", background: "rgba(247,55,79,0.08)", border: "1px solid rgba(247,55,79,0.2)", borderRadius: "10px", padding: "8px 10px" }}>

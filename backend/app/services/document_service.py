@@ -315,6 +315,14 @@ async def update_exam_history(document_id: str, exam_history: dict) -> None:
     )
 
 
+async def update_summary_cursor(document_id: str, cursor: int) -> None:
+    db = get_database()
+    await db.documents.update_one(
+        {"_id": to_object_id(document_id)},
+        {"$set": {"summaryCursor": max(0, cursor), "updatedAt": datetime.now(timezone.utc)}},
+    )
+
+
 async def _index_chunks_background(raw_text: str, document_id: str, user_id: str) -> None:
     """Embeds and upserts a document's chunks into Pinecone after the
     document is already marked ready. Sharpens follow-up-question answers

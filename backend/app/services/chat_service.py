@@ -45,10 +45,22 @@ def _build_document_block(title: str, condensed_context: str, excerpts: list[dic
 MAX_HISTORY_MESSAGE_CHARS = 1200
 KEEP_FULL_LAST_TURNS = 2
 MAX_CHAT_DOCUMENT_CHARS = 8000
-MAX_CHAT_COMPLETION_TOKENS = 1400
+MAX_CHAT_COMPLETION_TOKENS = 1800
 MIN_CHAT_COMPLETION_TOKENS = 400
 CHAT_TPM_BUDGET = 8000
+MAX_SUMMARY_SEGMENT_CHARS = 7000
 LEGACY_CONTINUATION_NOTICE = "\n\n[Summary abhi complete nahi hui hai. Aage continue karne ke liye input me continue likhein.]"
+
+
+def _summary_segment_size(document_length: int, detailed: bool = False) -> int:
+    """Size summary passes for roughly 2 parts by default, or 5 for a
+    requested detailed summary, while keeping each request small enough for
+    Groq's free TPM limit.
+    """
+    if document_length <= 0:
+        return MAX_SUMMARY_SEGMENT_CHARS
+    target_parts = 5 if detailed else 2
+    return min(MAX_SUMMARY_SEGMENT_CHARS, max(1, -(-document_length // target_parts)))
 
 
 def _truncate_history_text(text: str) -> str:
@@ -95,6 +107,7 @@ async def stream_chat_response(
     history = await message_service.get_history(document_id, user_id, limit=settings.chat_history_turns)
     continuation_message_id: str | None = None
     continuation_prefix = ""
+    is_summary_request = continuation or user_message.strip().lower() == "summarize this document for me."
     if not continuation:
         await message_service.insert_message(document_id, user_id, "user", "text", content=user_message)
     else:
@@ -127,7 +140,7 @@ async def stream_chat_response(
             "remaining topic and section is fully covered."
         )
 
-    if skip_retrieval:
+    if skip_retrieval or is_summary_request:
         raw_matches = []
     else:
         try:
@@ -141,13 +154,27 @@ async def stream_chat_response(
 
     sources = [{"chunkId": m["chunk_id"], "text": m["text"], "score": m["score"]} for m in raw_matches]
 
-    condensed_context = context_builder.get_fallback_context(
-        doc.get("rawText") or doc.get("condensedContext") or "",
-        MAX_CHAT_DOCUMENT_CHARS,
-    )
+    raw_document = doc.get("rawText") or doc.get("condensedContext") or ""
+    summary_instruction = (doc.get("summaryInstruction") or "").strip()
+    detailed_summary = bool(summary_instruction and any(
+        word in summary_instruction.lower()
+        for word in ("detail", "detailed", "deep", "thorough", "example", "explain")
+    ))
+    if is_summary_request:
+        summary_cursor = int(doc.get("summaryCursor") or 0)
+        if continuation:
+            summary_cursor = min(summary_cursor, len(raw_document))
+        else:
+            summary_cursor = 0
+        summary_segment_size = _summary_segment_size(len(raw_document), detailed_summary)
+        segment_end = min(summary_cursor + summary_segment_size, len(raw_document))
+        condensed_context = raw_document[summary_cursor:segment_end].strip()
+        if summary_cursor >= len(raw_document):
+            condensed_context = "The document has already been fully covered in the previous summary."
+    else:
+        condensed_context = context_builder.get_fallback_context(raw_document, MAX_CHAT_DOCUMENT_CHARS)
     document_block = _build_document_block(doc["title"], condensed_context, raw_matches)
 
-    summary_instruction = (doc.get("summaryInstruction") or "").strip()
     instruction_block = ""
     if summary_instruction:
         instruction_block = (
@@ -155,8 +182,22 @@ async def stream_chat_response(
             f"{summary_instruction}"
         )
     messages = [{"role": "system", "content": f"{SYSTEM_PROMPT}{instruction_block}\n\n{document_block}"}]
-    messages.extend(_history_to_llm_messages(history))
-    messages.append({"role": "user", "content": user_message})
+    if not is_summary_request:
+        messages.extend(_history_to_llm_messages(history))
+    elif continuation:
+        messages.append({"role": "assistant", "content": continuation_prefix[-1200:]})
+    if is_summary_request:
+        detail_mode = detailed_summary
+        summary_task = (
+            "Summarize this exact document segment in order. Cover every topic, heading, fact, "
+            "definition, number, example, relationship, and conclusion in this segment. "
+            "Do not skip any topic or invent information. "
+            + ("Explain each point thoroughly with examples and reasoning. " if detail_mode else "Keep it complete and information-dense. ")
+            + "This is one segment of a larger document; finish the current topic before stopping."
+        )
+        messages.append({"role": "user", "content": summary_task})
+    else:
+        messages.append({"role": "user", "content": user_message})
 
     # Groq's TPM limit counts the prompt and the requested completion
     # together. Keep enough headroom for a previous request in the same
@@ -174,6 +215,7 @@ async def stream_chat_response(
 
     accumulated = ""
     interrupted = False
+    next_cursor = int(doc.get("summaryCursor") or 0)
     stream_status: dict = {"complete": False}
     try:
         async for delta in llm.stream_completion(
@@ -213,6 +255,10 @@ async def stream_chat_response(
     finally:
         if accumulated.strip():
             saved_content = continuation_prefix + accumulated
+            if is_summary_request and not interrupted and stream_status["complete"]:
+                summary_cursor = int(doc.get("summaryCursor") or 0)
+                next_cursor = min(summary_cursor + summary_segment_size, len(raw_document))
+                await document_service.update_summary_cursor(document_id, next_cursor)
             if continuation and continuation_message_id:
                 saved = await message_service.update_text_message(
                     continuation_message_id, user_id, saved_content, sources=sources
@@ -228,8 +274,12 @@ async def stream_chat_response(
                     "messageId": str(saved["_id"]),
                     "sources": sources,
                     "createdAt": saved["createdAt"],
-                    "complete": not interrupted and stream_status["complete"],
-                    "continuationAvailable": not interrupted and not stream_status["complete"],
+                    "complete": (
+                        not interrupted
+                        and stream_status["complete"]
+                        and (not is_summary_request or next_cursor >= len(raw_document))
+                    ),
+                    "continuationAvailable": is_summary_request and next_cursor < len(raw_document),
                 },
             )
 
