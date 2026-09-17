@@ -1,4 +1,4 @@
-from fastapi import APIRouter, BackgroundTasks, Depends, File, Query, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, Query, UploadFile
 
 from app.api.deps import get_current_user
 from app.core.config import get_settings
@@ -14,6 +14,7 @@ router = APIRouter(prefix="/api/documents", tags=["documents"])
 async def upload_document(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
+    summary_instruction: str | None = Form(default=None, max_length=1000),
     current_user: dict = Depends(get_current_user),
 ) -> dict:
     settings = get_settings()
@@ -27,7 +28,9 @@ async def upload_document(
     filename = file.filename or "upload"
     mimetype = file.content_type or "application/octet-stream"
 
-    doc = await document_service.create_document_from_upload(str(current_user["_id"]), content, filename, mimetype)
+    doc = await document_service.create_document_from_upload(
+        str(current_user["_id"]), content, filename, mimetype, summary_instruction
+    )
     # Cloudinary upload + extraction happen entirely in the background now,
     # so this endpoint returns as soon as the (fast) DB insert is done - the
     # frontend gets a documentId immediately and can show the chat screen
@@ -43,7 +46,9 @@ async def create_from_url(
     background_tasks: BackgroundTasks,
     current_user: dict = Depends(get_current_user),
 ) -> dict:
-    doc = await document_service.create_document_from_url(str(current_user["_id"]), payload.url, payload.title)
+    doc = await document_service.create_document_from_url(
+        str(current_user["_id"]), payload.url, payload.title, payload.summaryInstruction
+    )
     background_tasks.add_task(document_service.process_document, str(doc["_id"]))
     return {"success": True, "data": {"document": DocumentPublic(**document_service.to_public(doc)).model_dump()}}
 
@@ -54,7 +59,9 @@ async def create_from_text(
     background_tasks: BackgroundTasks,
     current_user: dict = Depends(get_current_user),
 ) -> dict:
-    doc = await document_service.create_document_from_text(str(current_user["_id"]), payload.text, payload.title)
+    doc = await document_service.create_document_from_text(
+        str(current_user["_id"]), payload.text, payload.title, payload.summaryInstruction
+    )
     background_tasks.add_task(document_service.process_document, str(doc["_id"]))
     return {"success": True, "data": {"document": DocumentPublic(**document_service.to_public(doc)).model_dump()}}
 

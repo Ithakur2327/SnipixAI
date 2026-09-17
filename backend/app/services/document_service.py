@@ -40,7 +40,9 @@ async def enforce_document_limit(user_id: str) -> None:
         )
 
 
-async def create_document_from_upload(user_id: str, content: bytes, filename: str, mimetype: str) -> dict:
+async def create_document_from_upload(
+    user_id: str, content: bytes, filename: str, mimetype: str, summary_instruction: str | None = None
+) -> dict:
     """Creates the document record immediately (a single fast Mongo insert)
     WITHOUT waiting for the Cloudinary upload. This is what lets the upload
     API respond in milliseconds instead of waiting for a (potentially slow,
@@ -71,6 +73,7 @@ async def create_document_from_upload(user_id: str, content: bytes, filename: st
         "condensedContext": None,
         "messageCount": 0,
         "errorMessage": None,
+        "summaryInstruction": (summary_instruction or "").strip()[:1000],
         "createdAt": now,
         "updatedAt": now,
     }
@@ -122,7 +125,9 @@ async def upload_and_process(document_id: str, content: bytes, filename: str, mi
     await cloudinary_task
 
 
-async def create_document_from_url(user_id: str, url: str, title: Optional[str]) -> dict:
+async def create_document_from_url(
+    user_id: str, url: str, title: Optional[str], summary_instruction: str | None = None
+) -> dict:
     if not url or not url.startswith(("http://", "https://")):
         raise BadRequestError("Please provide a valid URL")
 
@@ -145,6 +150,7 @@ async def create_document_from_url(user_id: str, url: str, title: Optional[str])
         "condensedContext": None,
         "messageCount": 0,
         "errorMessage": None,
+        "summaryInstruction": (summary_instruction or "").strip()[:1000],
         "createdAt": now,
         "updatedAt": now,
     }
@@ -153,7 +159,9 @@ async def create_document_from_url(user_id: str, url: str, title: Optional[str])
     return doc
 
 
-async def create_document_from_text(user_id: str, text: str, title: Optional[str]) -> dict:
+async def create_document_from_text(
+    user_id: str, text: str, title: Optional[str], summary_instruction: str | None = None
+) -> dict:
     if not text or not text.strip():
         raise BadRequestError("Please provide some text")
 
@@ -176,6 +184,7 @@ async def create_document_from_text(user_id: str, text: str, title: Optional[str
         "condensedContext": None,
         "messageCount": 0,
         "errorMessage": None,
+        "summaryInstruction": (summary_instruction or "").strip()[:1000],
         "createdAt": now,
         "updatedAt": now,
     }
@@ -209,16 +218,14 @@ async def _finalize_document(object_id, doc: dict, raw_text: Optional[str], page
     """Shared final stage for every document source (upload, URL, pasted
     text): chunk, condense, finish RAG indexing, then mark the document ready.
 
-    Condensation always fully resolves before "ready": for anything under
-    the direct-context budget this is instant (the raw text is used
-    as-is), and for larger documents it runs as concurrent LLM calls (see
-    context_builder.MAX_CONCURRENT_CONDENSATIONS), so every topic in the
-    document is covered from the very first response onward - there's no
-    "ready but not really summarized yet" state.
+    Document processing must not spend the account's Groq TPM quota before
+    the user's first summary request. Long documents use a deterministic
+    bounded context here; the chat request performs the actual summary with
+    the model.
 
-    RAG indexing does not use Groq, but it must finish before the frontend
-    starts the first chat request. Otherwise that request can race the final
-    condensation calls and exceed Groq's rolling TPM window.
+    RAG indexing does not use Groq at all (local embedding model). It still
+    finishes before "ready" is set so the frontend's first chat request has
+    retrieval available.
     """
     db = get_database()
     document_id = str(object_id)
@@ -227,10 +234,7 @@ async def _finalize_document(object_id, doc: dict, raw_text: Optional[str], page
         raise ValueError("No readable text could be extracted from this source.")
 
     word_count = len(raw_text.split())
-    condensed_context = await context_builder.build_document_context(raw_text)
-
-    # Do not expose "ready" until ingestion has stopped consuming provider
-    # tokens and retrieval is available for the first user message.
+    condensed_context = context_builder.get_fallback_context(raw_text)
     await _index_chunks_background(raw_text, document_id, doc["userId"])
 
     await db.documents.update_one(

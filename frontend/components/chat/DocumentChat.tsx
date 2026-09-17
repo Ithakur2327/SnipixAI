@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronDown, ClipboardList, FileText, Home, Loader2, PenLine, Send, Square } from "lucide-react";
 import { chatAPI, documentAPI, examAPI, getApiErrorMessage, streamChatMessage } from "@/lib/api";
@@ -25,10 +26,27 @@ const MIN_REVEAL_CHARS_PER_FRAME = 3;
 // to catch up, so nothing ever lags for multiple seconds.
 const CATCHUP_BACKLOG_THRESHOLD = 500;
 const REVEAL_CATCHUP_DIVISOR = 25;
+const LEGACY_CONTINUATION_NOTICE = "\n\n[Summary abhi complete nahi hui hai. Aage continue karne ke liye input me continue likhein.]";
+const CONTINUATION_COMMANDS = new Set([
+  "continue",
+  "continue response",
+  "continue karo",
+  "yes",
+  "yes please",
+  "next",
+  "next please",
+  "aage",
+  "aage continue",
+  "aage continue karo",
+]);
 
 const subscribeNever = () => () => {};
 function useHasMounted(): boolean {
   return useSyncExternalStore(subscribeNever, () => true, () => false);
+}
+
+function removeLegacyContinuationNotice(content: string | null): string {
+  return (content ?? "").replace(LEGACY_CONTINUATION_NOTICE, "");
 }
 
 function DocCard({ doc }: { doc: Document }) {
@@ -144,16 +162,26 @@ export default function DocumentChat({
   const pollAttemptsRef = useRef(0);
   const fullTextRef = useRef("");
   const continuationBaseRef = useRef("");
+  const continuationMessageIdRef = useRef<string | null>(null);
   const revealFrameRef = useRef<number | null>(null);
 
   const isMounted = useHasMounted();
+  const pathname = usePathname();
 
   useEffect(() => {
     if (variant !== "overlay") return;
-    const previousOverflow = document.body.style.overflow;
+    // Lock both html and body: whichever one is the actual scrolling
+    // element (this varies by browser), locking only the other one leaves
+    // the page free to still scroll/reflow underneath the overlay, which
+    // is a common cause of a visible jump right as a full-screen overlay
+    // opens or closes.
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+    const previousBodyOverflow = document.body.style.overflow;
+    document.documentElement.style.overflow = "hidden";
     document.body.style.overflow = "hidden";
     return () => {
-      document.body.style.overflow = previousOverflow;
+      document.documentElement.style.overflow = previousHtmlOverflow;
+      document.body.style.overflow = previousBodyOverflow;
     };
   }, [variant]);
 
@@ -198,7 +226,13 @@ export default function DocumentChat({
       try {
         const res = await chatAPI.getHistory(documentId);
         if (!cancelled) {
-          setMessages(res.data.data.messages);
+          setMessages(
+            res.data.data.messages.map((message) =>
+              message.role === "assistant" && message.type === "text"
+                ? { ...message, content: removeLegacyContinuationNotice(message.content) }
+                : message
+            )
+          );
           setHistoryLoaded(true);
         }
       } catch (err) {
@@ -255,20 +289,21 @@ export default function DocumentChat({
   const handleSend = useCallback(
     async (text: string, continuation = false) => {
       const trimmed = text.trim();
-      if ((!trimmed && !continuation) || isStreaming || doc?.status !== "ready") return;
+      const isContinuationCommand = CONTINUATION_COMMANDS.has(trimmed.toLowerCase());
+      const shouldContinue = continuation || (continuationRequested && isContinuationCommand);
+      if ((!trimmed && !shouldContinue) || isStreaming || doc?.status !== "ready") return;
 
       setChatError(null);
-      if (!continuation) {
-        setInput("");
-        requestAnimationFrame(autoResizeTextarea);
+      setContinuationRequested(false);
+      setInput("");
+      requestAnimationFrame(autoResizeTextarea);
+      if (!shouldContinue) {
         continuationBaseRef.current = "";
+        continuationMessageIdRef.current = null;
       } else {
         const lastAssistant = [...messages].reverse().find((message) => message.role === "assistant" && message.type === "text");
-        continuationBaseRef.current = lastAssistant?.content ?? "";
-        setMessages((prev) => {
-          const lastIndex = [...prev].map((message) => message.role === "assistant" && message.type === "text").lastIndexOf(true);
-          return lastIndex >= 0 ? prev.filter((_, index) => index !== lastIndex) : prev;
-        });
+        continuationMessageIdRef.current = lastAssistant?.id ?? null;
+        continuationBaseRef.current = removeLegacyContinuationNotice(lastAssistant?.content ?? null);
       }
 
       const userMessage: ChatMessage = {
@@ -281,7 +316,7 @@ export default function DocumentChat({
         exam: null,
         createdAt: new Date().toISOString(),
       };
-      if (!continuation) setMessages((prev) => [...prev, userMessage]);
+      if (!shouldContinue) setMessages((prev) => [...prev, userMessage]);
       setIsStreaming(true);
       fullTextRef.current = "";
       setStreamingContent("");
@@ -292,10 +327,10 @@ export default function DocumentChat({
       let finalized = false;
 
       try {
-        await streamChatMessage(documentId, trimmed, {
+        await streamChatMessage(documentId, shouldContinue ? "" : trimmed, {
           signal: controller.signal,
-          continuation,
-          skipRetrieval: !continuation && trimmed === AUTO_SUMMARY_PROMPT,
+          continuation: shouldContinue,
+          skipRetrieval: !shouldContinue && trimmed === AUTO_SUMMARY_PROMPT,
           onEvent: (event) => {
             if (event.type === "token") {
               fullTextRef.current += event.content;
@@ -304,19 +339,26 @@ export default function DocumentChat({
             } else if (event.type === "done") {
               finalized = true;
               stopRevealLoop();
-              setMessages((prev) => [
-                ...prev,
-                {
-                  id: event.messageId,
-                  documentId,
-                  role: "assistant",
-                  type: "text",
-                  content: continuationBaseRef.current + fullTextRef.current,
-                  sources: event.sources,
-                  exam: null,
-                  createdAt: event.createdAt,
-                },
-              ]);
+              const completedMessage = {
+                id: event.messageId,
+                documentId,
+                role: "assistant" as const,
+                type: "text" as const,
+                content:
+                  continuationBaseRef.current +
+                  fullTextRef.current +
+                  "",
+                sources: event.sources,
+                exam: null,
+                createdAt: event.createdAt,
+              };
+              setMessages((prev) => {
+                if (!continuationMessageIdRef.current) return [...prev, completedMessage];
+                return prev.map((message) =>
+                  message.id === continuationMessageIdRef.current ? completedMessage : message
+                );
+              });
+              continuationMessageIdRef.current = null;
               setStreamingContent("");
               if (!event.complete) setContinuationRequested(true);
             }
@@ -329,26 +371,30 @@ export default function DocumentChat({
       } finally {
         stopRevealLoop();
         if (!finalized && fullTextRef.current.trim()) {
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: `local-${Date.now()}`,
-              documentId,
-              role: "assistant",
-              type: "text",
-              content: continuationBaseRef.current + fullTextRef.current,
-              sources: [],
-              exam: null,
-              createdAt: new Date().toISOString(),
-            },
-          ]);
+          const interruptedMessage = {
+            id: `local-${Date.now()}`,
+            documentId,
+            role: "assistant" as const,
+            type: "text" as const,
+            content: continuationBaseRef.current + fullTextRef.current,
+            sources: [],
+            exam: null,
+            createdAt: new Date().toISOString(),
+          };
+          setMessages((prev) => {
+            if (!continuationMessageIdRef.current) return [...prev, interruptedMessage];
+            return prev.map((message) =>
+              message.id === continuationMessageIdRef.current ? interruptedMessage : message
+            );
+          });
         }
+        continuationMessageIdRef.current = null;
         setStreamingContent("");
         setIsStreaming(false);
         abortRef.current = null;
       }
     },
-    [documentId, isStreaming, doc?.status, autoResizeTextarea, startRevealLoop, stopRevealLoop, messages]
+    [documentId, isStreaming, doc?.status, autoResizeTextarea, startRevealLoop, stopRevealLoop, messages, continuationRequested]
   );
 
   useEffect(() => {
@@ -471,6 +517,27 @@ export default function DocumentChat({
         )}
         <Link
           href="/"
+          onClick={(e) => {
+            // When this overlay is already opened on top of "/" itself (the
+            // home-page upload flow), a Link to "/" is a same-URL no-op for
+            // Next.js - nothing navigates and the overlay just stays open,
+            // which is what made this button look broken. In that case,
+            // close the overlay directly instead of relying on a route
+            // change that won't happen. Any other route (e.g. /library,
+            // /document/[id]) navigates to "/" normally, and a
+            // modified-click (new tab / new window) is left untouched.
+            if (
+              pathname === "/" &&
+              e.button === 0 &&
+              !e.metaKey &&
+              !e.ctrlKey &&
+              !e.shiftKey &&
+              !e.altKey
+            ) {
+              e.preventDefault();
+              onClose();
+            }
+          }}
           className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-black/70 text-white/70 backdrop-blur transition-colors hover:bg-white/10 hover:text-white"
           aria-label="Home"
           title="Home"
@@ -503,6 +570,26 @@ export default function DocumentChat({
             <DocErrorState message={doc.errorMessage || "Something went wrong while processing this document."} onClose={onClose} />
           )}
 
+          {/* Covers the brief gap between the overlay mounting and the
+              initial GET /documents/{id} resolving - without this, that gap
+              rendered nothing at all (no DocCard, no input bar yet), which
+              read as a blank-screen flash right in the middle of the
+              home -> chat transition. */}
+          {!docLoadError && !doc && (
+            <div className="flex justify-center py-10">
+              <div className="flex gap-1.5">
+                {[0, 1, 2].map((i) => (
+                  <motion.span
+                    key={i}
+                    className="h-1.5 w-1.5 rounded-full bg-white/30"
+                    animate={{ opacity: [0.25, 1, 0.25] }}
+                    transition={{ duration: 1.1, repeat: Infinity, delay: i * 0.18, ease: "easeInOut" }}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
           {showThread && doc && <DocCard doc={doc} />}
 
           {showThread && doc?.status === "ready" && !historyLoaded && (
@@ -533,7 +620,7 @@ export default function DocumentChat({
               )
             )}
 
-          {isStreaming && (streamingContent ? <AssistantBubble content={continuationBaseRef.current + streamingContent} streaming /> : <TypingRow />)}
+          {isStreaming && (streamingContent ? <AssistantBubble content={streamingContent} streaming /> : <TypingRow />)}
 
           <div ref={bottomRef} />
         </div>
@@ -579,20 +666,54 @@ export default function DocumentChat({
 
             {examError && <p className="mb-2 text-[12px] text-white/50">{examError}</p>}
             {chatError && <p className="mb-2 text-[12px] text-white/50">{chatError}</p>}
-            {continuationRequested && !isStreaming && (
-              <button
-                type="button"
-                onClick={() => {
-                  setContinuationRequested(false);
-                  void handleSend("", true);
-                }}
-                className="mb-2 text-left text-[12px] text-white/65 underline decoration-white/25 underline-offset-4 transition-colors hover:text-white"
-              >
-                Continue response
-              </button>
-            )}
-
             <div className="flex items-end gap-2 rounded-2xl border border-white/15 bg-white/[0.03] px-3.5 py-2 transition-colors focus-within:border-white/30">
+              <style>{`
+                /* Distinctive send button: a raised, tactile "puck" in the
+                   app's own accent red instead of a flat generic white
+                   circle - layered shadows (top highlight, bottom depth,
+                   outer glow) read as physically pressable, and it
+                   actually compresses on click instead of just dimming. */
+                .snx-msg-send-btn {
+                  position: relative;
+                  background: linear-gradient(160deg, #FF5D74 0%, #F7374F 52%, #C81936 100%);
+                  border: 1px solid rgba(255,255,255,0.2);
+                  border-radius: 10px;
+                  box-shadow:
+                    0 1px 0 rgba(255,255,255,0.45) inset,
+                    0 -3px 4px rgba(0,0,0,0.28) inset,
+                    0 3px 8px rgba(247,55,79,0.4),
+                    0 6px 16px -4px rgba(247,55,79,0.5);
+                  transform: translateY(0) scale(1);
+                  transition: transform 130ms cubic-bezier(0.22,1,0.36,1), box-shadow 130ms ease, filter 130ms ease;
+                }
+                .snx-msg-send-btn:hover:not(:disabled) {
+                  transform: translateY(-1.5px) scale(1.03);
+                  filter: brightness(1.08);
+                  box-shadow:
+                    0 1px 0 rgba(255,255,255,0.5) inset,
+                    0 -3px 4px rgba(0,0,0,0.28) inset,
+                    0 4px 10px rgba(247,55,79,0.5),
+                    0 10px 22px -4px rgba(247,55,79,0.6);
+                }
+                .snx-msg-send-btn:active:not(:disabled) {
+                  transform: translateY(0.5px) scale(0.9);
+                  filter: brightness(0.96);
+                  box-shadow:
+                    0 1px 0 rgba(255,255,255,0.25) inset,
+                    0 -1px 2px rgba(0,0,0,0.35) inset,
+                    0 2px 5px rgba(247,55,79,0.4);
+                }
+                .snx-msg-send-btn:disabled {
+                  background: rgba(255,255,255,0.08);
+                  border-color: rgba(255,255,255,0.08);
+                  box-shadow: none;
+                  cursor: not-allowed;
+                }
+                @media (prefers-reduced-motion: reduce) {
+                  .snx-msg-send-btn { transition: none !important; }
+                  .snx-msg-send-btn:hover:not(:disabled), .snx-msg-send-btn:active:not(:disabled) { transform: none !important; }
+                }
+              `}</style>
               <textarea
                 ref={textareaRef}
                 value={input}
@@ -628,10 +749,10 @@ export default function DocumentChat({
                   type="button"
                   onClick={() => void handleSend(input)}
                   disabled={!input.trim()}
-                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-black transition-opacity disabled:opacity-20 hover:opacity-85"
+                  className="snx-msg-send-btn flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white disabled:text-white/30"
                   aria-label="Send message"
                 >
-                  <Send size={14} />
+                  <Send size={14} strokeWidth={2.5} />
                 </button>
               )}
             </div>

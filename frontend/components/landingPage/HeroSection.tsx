@@ -31,6 +31,7 @@ function formatFileSize(bytes: number): string {
 export default function HeroSection() {
   const [loading, setLoading] = useState(false);
   const [content, setContent] = useState("");
+  const [summaryInstruction, setSummaryInstruction] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [isOpeningChat, setIsOpeningChat] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -85,13 +86,17 @@ export default function HeroSection() {
     try {
       let newDocId: string;
       if (file) {
-        const { data } = await documentAPI.uploadFile(file);
+        const { data } = await documentAPI.uploadFile(file, summaryInstruction);
         newDocId = data.data.document.id;
       } else if (isUrl) {
-        const { data } = await documentAPI.createFromUrl(trimmedContent);
+        const { data } = await documentAPI.createFromUrl(trimmedContent, undefined, summaryInstruction);
         newDocId = data.data.document.id;
       } else {
-        const { data } = await documentAPI.createFromText(trimmedContent, `Summary – ${new Date().toLocaleDateString()}`);
+        const { data } = await documentAPI.createFromText(
+          trimmedContent,
+          `Summary – ${new Date().toLocaleDateString()}`,
+          summaryInstruction,
+        );
         newDocId = data.data.document.id;
       }
       setIsOpeningChat(true);
@@ -131,6 +136,7 @@ export default function HeroSection() {
     setDocumentId(null);
     setErrorMsg(null);
     setContent("");
+    setSummaryInstruction("");
     setFile(null);
   };
 
@@ -237,12 +243,13 @@ export default function HeroSection() {
 
         .snx-send-btn {
           display: inline-flex; align-items: center; justify-content: center;
-          width: 32px; height: 32px; border-radius: 50%; border: none; cursor: pointer;
-          transition: opacity 0.2s, transform 0.15s, box-shadow 0.2s;
+          width: 34px; height: 32px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.2); cursor: pointer;
+          transition: opacity 0.2s, transform 0.15s, box-shadow 0.2s, filter 0.15s;
+          box-shadow: 0 1px 0 rgba(255,255,255,0.45) inset, 0 -3px 4px rgba(0,0,0,0.28) inset, 0 4px 9px rgba(0,0,0,0.35);
           flex-shrink: 0;
         }
-        .snx-send-btn:not(:disabled):hover { transform: translateY(-1px); }
-        .snx-send-btn:not(:disabled):active { transform: scale(0.94); }
+        .snx-send-btn:not(:disabled):hover { transform: translateY(-1.5px); filter: brightness(1.08); box-shadow: 0 1px 0 rgba(255,255,255,0.55) inset, 0 -3px 4px rgba(0,0,0,0.25) inset, 0 7px 14px rgba(247,55,79,0.36); }
+        .snx-send-btn:not(:disabled):active { transform: translateY(1px) scale(0.94); box-shadow: 0 1px 0 rgba(255,255,255,0.2) inset, 0 -1px 2px rgba(0,0,0,0.35) inset, 0 2px 4px rgba(0,0,0,0.35); }
 
         /* ===== Responsive scaling ===== */
         @media (max-width: 640px) {
@@ -400,6 +407,26 @@ export default function HeroSection() {
             )}
           </div>
 
+          <input
+            value={summaryInstruction}
+            onChange={(e) => setSummaryInstruction(e.target.value)}
+            placeholder="Optional: e.g. explain in detail, include every topic and example"
+            maxLength={1000}
+            aria-label="Summary preference"
+            style={{
+              width: "100%",
+              marginTop: "10px",
+              padding: "9px 10px",
+              borderRadius: "9px",
+              border: "1px solid rgba(255,255,255,0.08)",
+              background: "rgba(255,255,255,0.03)",
+              color: "#fff",
+              outline: "none",
+              boxSizing: "border-box",
+              fontSize: "12px",
+            }}
+          />
+
           {errorMsg && (
             <p style={{ marginTop: "9px", fontSize: "12px", color: "rgba(255,255,255,0.6)", background: "rgba(247,55,79,0.08)", border: "1px solid rgba(247,55,79,0.2)", borderRadius: "10px", padding: "8px 10px" }}>
               {errorMsg}
@@ -425,7 +452,7 @@ export default function HeroSection() {
               title="Generate summary"
               style={{
                 background: canSend ? "#F7374F" : "rgba(247,55,79,0.2)",
-                boxShadow: canSend ? "0 0 16px rgba(247,55,79,0.38)" : "none",
+                boxShadow: canSend ? "0 1px 0 rgba(255,255,255,0.45) inset, 0 -3px 4px rgba(0,0,0,0.28) inset, 0 5px 14px rgba(247,55,79,0.38)" : "none",
                 cursor: canSend ? "pointer" : "not-allowed",
               }}
             >

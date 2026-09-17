@@ -45,11 +45,13 @@ class UsageData(BaseModel):
 class CreateFromUrlRequest(BaseModel):
     url: str
     title: Optional[str] = None
+    summaryInstruction: Optional[str] = Field(default=None, max_length=1000)
 
 
 class CreateFromTextRequest(BaseModel):
     text: str = Field(min_length=1)
     title: Optional[str] = None
+    summaryInstruction: Optional[str] = Field(default=None, max_length=1000)
 
 
 class DocumentPublic(BaseModel):

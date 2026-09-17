@@ -21,21 +21,17 @@ logger = logging.getLogger(__name__)
 # tokens/minute, so one call per topic would burn through that budget fast
 # on a document with many topics.
 #
-# Batches run ONE AT A TIME (not concurrently). On an account that's
-# already near its 8000 TPM ceiling, firing several batches at once doesn't
-# make the exam finish faster - Groq judges "tokens used so far" per
-# request, so simultaneous requests just collide and 429 each other,
-# forcing wasted retries. Running them sequentially means each batch's
-# call reflects the real, current usage, so it's actually more likely to
-# succeed on the first try - which in practice finishes faster than a
-# "concurrent but mostly rejected" burst would.
-TOPICS_PER_BATCH = 5
+# Batches run one at a time. Keeping requests sequential prevents batches
+# from colliding when the account is already near Groq's 8000 TPM ceiling.
+# Smaller batches also keep each individual request below the remaining
+# rolling-window headroom after a summary or another exam request.
+TOPICS_PER_BATCH = 2
 QUESTIONS_PER_TOPIC = 3
 MAX_CONCURRENT_BATCHES = 1
 MAX_PRIOR_QUESTIONS_PER_TOPIC = 6
 RETRIEVAL_TOP_K_PER_TOPIC = 2
-MAX_EXAM_CONTEXT_CHARS = 4000
-MAX_EXAM_COMPLETION_TOKENS = 1400
+MAX_EXAM_CONTEXT_CHARS = 3000
+MAX_EXAM_COMPLETION_TOKENS = 900
 
 
 def _document_context(document: dict, use_document: bool) -> str:
@@ -136,11 +132,17 @@ Document content:
         max_tokens=min(
             get_settings().exam_max_output_tokens,
             MAX_EXAM_COMPLETION_TOKENS,
-            max(1200, len(topics) * per_topic_count * 180),
+            max(700, len(topics) * per_topic_count * 120),
         ),
         temperature=0.6,
         json_mode=True,
         rate_limit_retries=2,
+        # Capped short instead of the default 45s/attempt: 2 retries at the
+        # old cap could silently take up to ~90s before this batch even
+        # reached its own failure handling below. Capping it keeps a
+        # rate-limited batch resolving (success or a clear error) within a
+        # few seconds instead.
+        max_wait_seconds=llm.SHORT_RATE_LIMIT_WAIT_SECONDS,
     )
     parsed = json.loads(llm.strip_json_fence(response))
     questions = parsed.get("questions")

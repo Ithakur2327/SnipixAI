@@ -29,6 +29,26 @@ MAX_RATE_LIMIT_RETRIES = 0
 MAX_RATE_LIMIT_WAIT_SECONDS = 45.0
 DEFAULT_RATE_LIMIT_WAIT_SECONDS = 3.0
 
+# Used by latency-sensitive callers (document condensation, exam batches)
+# that now retry once instead of failing straight to a degraded fallback -
+# capping the wait keeps that retry from ever turning into the old
+# 30-70s+ stall this module otherwise avoids. If Groq reports a longer
+# suggested wait than this, the caller still fails fast (raises) rather
+# than actually sleeping that long.
+SHORT_RATE_LIMIT_WAIT_SECONDS = 6.0
+
+# A single chat request (full document context +, for a continuation,
+# the previous long response kept at full length as history) can
+# legitimately need several thousand tokens in one call. Capping its retry
+# wait at the same 6s used for small ingestion/exam calls was actively
+# counterproductive: if Groq reports the window needs, say, 17s to clear,
+# waiting only 6 of those and retrying anyway just guarantees a second,
+# identical 429 - wasting 6s for nothing before failing exactly as before.
+# This cap is wide enough to cover a real single-minute-window wait so the
+# retry actually has enough headroom to succeed, while still refusing to
+# sit through Groq's rare worst-case 30-45s suggestions.
+CHAT_RATE_LIMIT_WAIT_SECONDS = 22.0
+
 
 def get_client() -> AsyncGroq:
     global _client
@@ -81,7 +101,10 @@ def is_daily_rate_limit(exc: RateLimitError) -> bool:
 
 
 async def _create_with_rate_limit_retry(
-    client: AsyncGroq, max_retries: int = MAX_RATE_LIMIT_RETRIES, **kwargs
+    client: AsyncGroq,
+    max_retries: int = MAX_RATE_LIMIT_RETRIES,
+    max_wait_seconds: float = MAX_RATE_LIMIT_WAIT_SECONDS,
+    **kwargs,
 ):
     """Wrapper around client.chat.completions.create that transparently
     retries Groq 429s using the wait time Groq itself reports.
@@ -102,7 +125,7 @@ async def _create_with_rate_limit_retry(
             attempt += 1
             if attempt > max_retries:
                 raise
-            wait_s = min(_retry_after_seconds(exc), MAX_RATE_LIMIT_WAIT_SECONDS)
+            wait_s = min(_retry_after_seconds(exc), max_wait_seconds)
             logger.warning(
                 "[llm] Groq rate limit hit, retrying in %.1fs (attempt %d/%d)",
                 wait_s,
@@ -118,12 +141,14 @@ async def stream_completion(
     temperature: float = 0.6,
     stream_status: dict | None = None,
     rate_limit_retries: int = MAX_RATE_LIMIT_RETRIES,
+    max_wait_seconds: float = MAX_RATE_LIMIT_WAIT_SECONDS,
 ) -> AsyncGenerator[str, None]:
     settings = get_settings()
     client = get_client()
     stream = await _create_with_rate_limit_retry(
         client,
         max_retries=rate_limit_retries,
+        max_wait_seconds=max_wait_seconds,
         model=settings.groq_model,
         messages=messages,
         temperature=temperature,
@@ -152,6 +177,7 @@ async def generate_completion(
     temperature: float = 0.4,
     json_mode: bool = False,
     rate_limit_retries: int | None = None,
+    max_wait_seconds: float = MAX_RATE_LIMIT_WAIT_SECONDS,
 ) -> str:
     settings = get_settings()
     client = get_client()
@@ -170,6 +196,7 @@ async def generate_completion(
         response = await _create_with_rate_limit_retry(
             client,
             max_retries=MAX_RATE_LIMIT_RETRIES if rate_limit_retries is None else rate_limit_retries,
+            max_wait_seconds=max_wait_seconds,
             **kwargs,
         )
     except RateLimitError:
@@ -187,6 +214,7 @@ async def generate_completion(
             response = await _create_with_rate_limit_retry(
                 client,
                 max_retries=MAX_RATE_LIMIT_RETRIES if rate_limit_retries is None else rate_limit_retries,
+                max_wait_seconds=max_wait_seconds,
                 **kwargs,
             )
         else:

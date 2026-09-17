@@ -23,7 +23,11 @@ MAX_EXTRACTED_TOPICS = 20
 # summarizing a large document used to feel slow - a 30-section document at
 # ~2s/call took a minute or more. Running them concurrently (bounded so we
 # don't blow through Groq rate limits) turns that into a few seconds.
-MAX_CONCURRENT_CONDENSATIONS = 2
+# 3 (up from 2) still leaves comfortable headroom under the free tier's
+# 30 requests/minute and 8000 TPM ceilings for a single document's burst,
+# while cutting another ~third off the wall-clock time for documents with
+# several sections.
+MAX_CONCURRENT_CONDENSATIONS = 3
 MAX_SECTION_INPUT_CHARS = 6000
 
 
@@ -63,11 +67,18 @@ async def _condense_section(section: str, index: int, total: int, target_words: 
         {"role": "system", "content": "Produce an accurate, information-dense document condensation."},
         {"role": "user", "content": prompt},
     ]
+    # One quick, tightly-capped retry on a transient rate limit (instead of
+    # failing straight to the raw-truncated fallback below) - this is what
+    # actually protects "content quality/quantity shouldn't change" now that
+    # concurrency is higher: a section that collides with another one gets a
+    # real second attempt at an LLM condensation rather than silently
+    # degrading to an un-summarized slice.
     result = await llm.generate_completion(
         messages,
         max_tokens=500,
         temperature=0.2,
-        rate_limit_retries=0,
+        rate_limit_retries=1,
+        max_wait_seconds=llm.SHORT_RATE_LIMIT_WAIT_SECONDS,
     )
     return result.strip()
 
@@ -141,16 +152,25 @@ async def build_document_context(raw_text: str) -> str:
     return combined
 
 
-def get_fallback_context(raw_text: str) -> str:
+def get_fallback_context(raw_text: str, max_chars: int | None = None) -> str:
     settings = get_settings()
     cleaned = (raw_text or "").strip()
-    if len(cleaned) <= settings.direct_context_char_budget:
+    budget = max_chars or settings.direct_context_char_budget
+    if len(cleaned) <= budget:
         return cleaned
 
-    half = settings.direct_context_char_budget // 2
-    head = cleaned[:half]
-    tail = cleaned[-half:]
-    return f"{head}\n\n[...middle of document omitted while full analysis finishes...]\n\n{tail}"
+    # Preserve a representative window from every part of a long document;
+    # sending only the head and tail makes all middle topics impossible to
+    # summarize, even when the model is explicitly told not to skip them.
+    window_count = 4
+    window_size = max(1, (budget - (window_count - 1) * 80) // window_count)
+    windows = []
+    for index in range(window_count):
+        start = round(index * (len(cleaned) - window_size) / (window_count - 1))
+        window = cleaned[start : start + window_size].strip()
+        if window:
+            windows.append(f"[Document section {index + 1}/{window_count}]\n{window}")
+    return "\n\n[...additional document content continues in the next section...]\n\n".join(windows)
 
 
 async def extract_topics(context: str) -> List[str]:
@@ -184,7 +204,14 @@ async def extract_topics(context: str) -> List[str]:
         {"role": "user", "content": prompt},
     ]
     try:
-        response = await llm.generate_completion(messages, max_tokens=450, temperature=0.2, json_mode=True)
+        response = await llm.generate_completion(
+            messages,
+            max_tokens=450,
+            temperature=0.2,
+            json_mode=True,
+            rate_limit_retries=1,
+            max_wait_seconds=llm.SHORT_RATE_LIMIT_WAIT_SECONDS,
+        )
         parsed = json.loads(llm.strip_json_fence(response))
         raw_topics = parsed.get("topics")
         if not isinstance(raw_topics, list):

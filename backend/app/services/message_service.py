@@ -67,5 +67,24 @@ async def update_exam_state(message_id: str, user_id: str, exam_updates: dict) -
     return message
 
 
+async def update_text_message(
+    message_id: str,
+    user_id: str,
+    content: str,
+    sources: list[dict] | None = None,
+) -> dict:
+    message = await get_message(message_id, user_id)
+    if message["type"] != "text" or message["role"] != "assistant":
+        raise NotFoundError("Assistant text message not found")
+
+    updates = {"content": content}
+    if sources is not None:
+        updates["sources"] = sources
+    db = get_database()
+    await db.messages.update_one({"_id": message["_id"]}, {"$set": updates})
+    message.update(updates)
+    return message
+
+
 def to_public(message: dict) -> dict:
     return serialize_doc(message)

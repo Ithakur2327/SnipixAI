@@ -80,9 +80,10 @@ export const userAPI = {
 };
 
 export const documentAPI = {
-  uploadFile: (file: File, onProgress?: (percent: number) => void) => {
+  uploadFile: (file: File, summaryInstruction?: string, onProgress?: (percent: number) => void) => {
     const formData = new FormData();
     formData.append("file", file);
+    if (summaryInstruction?.trim()) formData.append("summary_instruction", summaryInstruction.trim());
     return api.post<ApiResponse<{ document: Document }>>("/documents/upload", formData, {
       headers: { "Content-Type": "multipart/form-data" },
       onUploadProgress: (event) => {
@@ -92,10 +93,10 @@ export const documentAPI = {
       },
     });
   },
-  createFromUrl: (url: string, title?: string) =>
-    api.post<ApiResponse<{ document: Document }>>("/documents/url", { url, title }),
-  createFromText: (text: string, title?: string) =>
-    api.post<ApiResponse<{ document: Document }>>("/documents/text", { text, title }),
+  createFromUrl: (url: string, title?: string, summaryInstruction?: string) =>
+    api.post<ApiResponse<{ document: Document }>>("/documents/url", { url, title, summaryInstruction }),
+  createFromText: (text: string, title?: string, summaryInstruction?: string) =>
+    api.post<ApiResponse<{ document: Document }>>("/documents/text", { text, title, summaryInstruction }),
   list: (params?: { page?: number; limit?: number; search?: string }) =>
     api.get<ApiResponse<{ documents: Document[]; total: number }>>("/documents", { params }),
   get: (documentId: string) => api.get<ApiResponse<{ document: Document }>>(`/documents/${documentId}`),
@@ -132,7 +133,7 @@ export const examAPI = {
 
 export type StreamEvent =
   | { type: "token"; content: string }
-  | { type: "done"; messageId: string; sources: ChatMessage["sources"]; createdAt: string; complete: boolean }
+  | { type: "done"; messageId: string; sources: ChatMessage["sources"]; createdAt: string; complete: boolean; continuationAvailable: boolean }
   | { type: "error"; message: string };
 
 export async function streamChatMessage(
@@ -200,6 +201,7 @@ export async function streamChatMessage(
             sources: parsed.sources ?? [],
             createdAt: parsed.createdAt,
             complete: parsed.complete ?? true,
+            continuationAvailable: parsed.continuationAvailable ?? false,
           });
         } else if (eventType === "error") {
           handlers.onEvent({ type: "error", message: parsed.message });

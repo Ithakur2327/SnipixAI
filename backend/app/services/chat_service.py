@@ -13,7 +13,7 @@ SYSTEM_PROMPT = """You are SnipixAI, a highly capable document assistant with th
 
 Core behavior:
 - Respond in the same language, script, and tone the user writes in.
-- When asked to summarize or explain the document and no specific format is requested, walk through every topic and section present in the document content below, in the order they appear - do not skip, merge, or compress sections just to make the answer shorter. For each point, explain the reasoning, context, or "why" behind it, not just the bare fact in isolation. Never give a short, generic, or artificially truncated answer by default.
+- When asked to summarize or explain the document and no specific format is requested, cover every topic and section visible in the provided document windows in their original order. Do not skip, merge, or compress topics merely to make the answer shorter. Give the maximum useful detail: definitions, facts, numbers, examples, relationships, reasoning, and conclusions. Never give a short, generic, or artificially truncated answer by default.
 - For a long summary, stop only after completing the current topic or section; never end halfway through a topic. A later continuation must begin with the next unfinished topic or section.
 - Use clear structure (headings, short paragraphs, and lists) only where it genuinely helps readability. Do not force a rigid template on every answer.
 - When the user requests a specific format, length, tone, focus, or style, follow their instructions precisely instead of your default style.
@@ -44,8 +44,11 @@ def _build_document_block(title: str, condensed_context: str, excerpts: list[dic
 # shortened to their gist.
 MAX_HISTORY_MESSAGE_CHARS = 1200
 KEEP_FULL_LAST_TURNS = 2
-MAX_CHAT_DOCUMENT_CHARS = 6000
-MAX_CHAT_COMPLETION_TOKENS = 1200
+MAX_CHAT_DOCUMENT_CHARS = 8000
+MAX_CHAT_COMPLETION_TOKENS = 1400
+MIN_CHAT_COMPLETION_TOKENS = 400
+CHAT_TPM_BUDGET = 8000
+LEGACY_CONTINUATION_NOTICE = "\n\n[Summary abhi complete nahi hui hai. Aage continue karne ke liye input me continue likhein.]"
 
 
 def _truncate_history_text(text: str) -> str:
@@ -61,6 +64,7 @@ def _history_to_llm_messages(history: list[dict]) -> list[dict]:
         keep_full = idx >= total - KEEP_FULL_LAST_TURNS
         if msg["type"] == "text" and msg.get("content"):
             content = msg["content"] if keep_full else _truncate_history_text(msg["content"])
+            content = content.removesuffix(LEGACY_CONTINUATION_NOTICE)
             formatted.append({"role": msg["role"], "content": content})
         elif msg["type"] == "exam" and msg.get("exam"):
             topic = msg["exam"].get("topic", "the document")
@@ -89,6 +93,8 @@ async def stream_chat_response(
         return
 
     history = await message_service.get_history(document_id, user_id, limit=settings.chat_history_turns)
+    continuation_message_id: str | None = None
+    continuation_prefix = ""
     if not continuation:
         await message_service.insert_message(document_id, user_id, "user", "text", content=user_message)
     else:
@@ -104,7 +110,10 @@ async def stream_chat_response(
         for msg in reversed(history):
             if msg["role"] == "assistant" and msg["type"] == "text" and msg.get("content"):
                 last_assistant_text = msg["content"]
+                continuation_message_id = str(msg["_id"])
                 break
+            last_assistant_text = last_assistant_text.removesuffix(LEGACY_CONTINUATION_NOTICE)
+        continuation_prefix = last_assistant_text
         tail = last_assistant_text[-400:]
         user_message = (
             "Your previous response was cut off before it was finished. Here is the exact "
@@ -133,17 +142,35 @@ async def stream_chat_response(
     sources = [{"chunkId": m["chunk_id"], "text": m["text"], "score": m["score"]} for m in raw_matches]
 
     condensed_context = context_builder.get_fallback_context(
-        doc.get("condensedContext") or doc.get("rawText") or ""
+        doc.get("rawText") or doc.get("condensedContext") or "",
+        MAX_CHAT_DOCUMENT_CHARS,
     )
-    if len(condensed_context) > MAX_CHAT_DOCUMENT_CHARS:
-        condensed_context = context_builder._trim_at_boundary(
-            condensed_context, MAX_CHAT_DOCUMENT_CHARS
-        )
     document_block = _build_document_block(doc["title"], condensed_context, raw_matches)
 
-    messages = [{"role": "system", "content": f"{SYSTEM_PROMPT}\n\n{document_block}"}]
+    summary_instruction = (doc.get("summaryInstruction") or "").strip()
+    instruction_block = ""
+    if summary_instruction:
+        instruction_block = (
+            "\n\nUser's summary preference (follow this while preserving complete topic coverage):\n"
+            f"{summary_instruction}"
+        )
+    messages = [{"role": "system", "content": f"{SYSTEM_PROMPT}{instruction_block}\n\n{document_block}"}]
     messages.extend(_history_to_llm_messages(history))
     messages.append({"role": "user", "content": user_message})
+
+    # Groq's TPM limit counts the prompt and the requested completion
+    # together. Keep enough headroom for a previous request in the same
+    # rolling minute instead of sending a request that is valid by itself
+    # but guaranteed to 429 after recent usage.
+    estimated_input_tokens = max(
+        1,
+        sum(len(str(message.get("content", ""))) for message in messages) // 4,
+    )
+    available_completion_tokens = max(
+        MIN_CHAT_COMPLETION_TOKENS,
+        CHAT_TPM_BUDGET - estimated_input_tokens - 600,
+    )
+    chat_completion_tokens = min(MAX_CHAT_COMPLETION_TOKENS, available_completion_tokens)
 
     accumulated = ""
     interrupted = False
@@ -151,9 +178,19 @@ async def stream_chat_response(
     try:
         async for delta in llm.stream_completion(
             messages,
-            max_tokens=min(settings.max_output_tokens, MAX_CHAT_COMPLETION_TOKENS),
+            max_tokens=min(settings.max_output_tokens, chat_completion_tokens),
             stream_status=stream_status,
-            rate_limit_retries=0,
+            # One quick, bounded retry instead of failing instantly on the
+            # first 429 - capped generously enough (see
+            # llm.CHAT_RATE_LIMIT_WAIT_SECONDS) that when Groq reports a
+            # real wait (e.g. ~18s after a big continuation request collides
+            # with the window a large summary just used), the retry
+            # actually waits long enough to succeed instead of retrying too
+            # early and failing again. Daily-quota exhaustion still fails
+            # immediately either way (see _create_with_rate_limit_retry's
+            # own check for that).
+            rate_limit_retries=1,
+            max_wait_seconds=8.0,
         ):
             accumulated += delta
             yield sse_event("token", {"content": delta})
@@ -175,10 +212,16 @@ async def stream_chat_response(
             yield sse_event("error", {"message": "The AI is temporarily unavailable. Please try again."})
     finally:
         if accumulated.strip():
-            saved = await message_service.insert_message(
-                document_id, user_id, "assistant", "text", content=accumulated, sources=sources
-            )
-            await document_service.increment_message_count(document_id)
+            saved_content = continuation_prefix + accumulated
+            if continuation and continuation_message_id:
+                saved = await message_service.update_text_message(
+                    continuation_message_id, user_id, saved_content, sources=sources
+                )
+            else:
+                saved = await message_service.insert_message(
+                    document_id, user_id, "assistant", "text", content=saved_content, sources=sources
+                )
+                await document_service.increment_message_count(document_id)
             yield sse_event(
                 "done",
                 {
@@ -186,6 +229,7 @@ async def stream_chat_response(
                     "sources": sources,
                     "createdAt": saved["createdAt"],
                     "complete": not interrupted and stream_status["complete"],
+                    "continuationAvailable": not interrupted and not stream_status["complete"],
                 },
             )
 
