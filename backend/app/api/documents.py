@@ -31,11 +31,6 @@ async def upload_document(
     doc = await document_service.create_document_from_upload(
         str(current_user["_id"]), content, filename, mimetype, summary_instruction
     )
-    # Cloudinary upload + extraction happen entirely in the background now,
-    # so this endpoint returns as soon as the (fast) DB insert is done - the
-    # frontend gets a documentId immediately and can show the chat screen
-    # right away instead of waiting for the file to finish uploading to
-    # Cloudinary first.
     background_tasks.add_task(document_service.upload_and_process, str(doc["_id"]), content, filename, mimetype)
     return {"success": True, "data": {"document": DocumentPublic(**document_service.to_public(doc)).model_dump()}}
 
