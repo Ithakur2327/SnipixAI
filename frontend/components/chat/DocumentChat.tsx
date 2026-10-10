@@ -518,14 +518,7 @@ export default function DocumentChat({
         <Link
           href="/"
           onClick={(e) => {
-            // When this overlay is already opened on top of "/" itself (the
-            // home-page upload flow), a Link to "/" is a same-URL no-op for
-            // Next.js - nothing navigates and the overlay just stays open,
-            // which is what made this button look broken. In that case,
-            // close the overlay directly instead of relying on a route
-            // change that won't happen. Any other route (e.g. /library,
-            // /document/[id]) navigates to "/" normally, and a
-            // modified-click (new tab / new window) is left untouched.
+           
             if (
               pathname === "/" &&
               e.button === 0 &&
@@ -570,11 +563,6 @@ export default function DocumentChat({
             <DocErrorState message={doc.errorMessage || "Something went wrong while processing this document."} onClose={onClose} />
           )}
 
-          {/* Covers the brief gap between the overlay mounting and the
-              initial GET /documents/{id} resolving - without this, that gap
-              rendered nothing at all (no DocCard, no input bar yet), which
-              read as a blank-screen flash right in the middle of the
-              home -> chat transition. */}
           {!docLoadError && !doc && (
             <div className="flex justify-center py-10">
               <div className="flex gap-1.5">
