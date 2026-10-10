@@ -51,8 +51,6 @@ settings = get_settings()
 
 app = FastAPI(title=settings.app_name, lifespan=lifespan)
 
-# Compresses JSON/text responses (document text, chat history, etc) so
-# larger payloads transfer faster over the wire.
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 app.add_middleware(
